@@ -7,7 +7,9 @@
   },
   "license": "MIT",
   "dependencies": {
-    "solid-js": "^1.4.7"
+    "@tauri-apps/api": "^1.0.2",
+    "solid-js": "^1.4.7",
+    "tauri-plugin-log-api": "github:tauri-apps/tauri-plugin-log"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^1.0.5",
