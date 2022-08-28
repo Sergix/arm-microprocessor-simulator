@@ -18,7 +18,7 @@ log = "0.4.17"
 fern = "0.6"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.0.0", features = ["api-all"] }
+tauri = { version = "1.0.0", features = ["api-all", "cli"] }
 
 [dependencies.tauri-plugin-log]
 git = "https://github.com/tauri-apps/tauri-plugin-log"
@@ -31,3 +31,6 @@ default = [ "custom-protocol" ]
 # this feature is used used for production builds where `devPath` points to the filesystem
 # DO NOT remove this
 custom-protocol = [ "tauri/custom-protocol" ]
+
+[term]
+verbose = true

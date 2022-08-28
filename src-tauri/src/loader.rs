@@ -1,4 +1,5 @@
-use log::trace;
+use crate::ram::RAM;
+use log::info;
 
 pub fn calculate_checksum(mem: &[i32]) -> i32 {
     let mut checksum: i32 = 0;
@@ -8,4 +9,15 @@ pub fn calculate_checksum(mem: &[i32]) -> i32 {
     }
 
     return checksum;
+}
+
+pub fn load_elf(filename: String, memory: &RAM) {
+    info!("Opening {}...", filename);
+
+    // open file
+
+    // read sections
+
+    // load into memory
+    
 }

@@ -29,7 +29,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
+      "identifier": "com.sergix.dev",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -46,6 +46,25 @@
         "digestAlgorithm": "sha256",
         "timestampUrl": ""
       }
+    },
+    "cli": {
+      "description": "CpS310 ARMSim Project",
+      "beforeHelp": "built by Peyton McGinnis with Rust + Tauri + SolidJS",
+      "afterHelp": ":)",
+      "args": [
+        {
+          "name": "mem",
+          "description": "a number specifying the number of bytes in the simulated RAM",
+          "takesValue": true,
+          "required": false
+        },
+        {
+          "name": "elf-file",
+          "description": "the name of a file in ELF format",
+          "takesValue": true,
+          "required": true
+        }
+      ]
     },
     "security": {
       "csp": null

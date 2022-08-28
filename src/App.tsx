@@ -6,6 +6,9 @@ import * as log from 'tauri-plugin-log-api'
 import logo from './logo.svg';
 import styles from './App.module.css';
 
+// TODO: listen for events from backend in case cmd args were passed
+// https://tauri.app/v1/api/js/modules/event#listen
+
 const App: Component = () => {
   log.attachConsole();
 
