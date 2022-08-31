@@ -5,26 +5,25 @@ import * as log from 'tauri-plugin-log-api'
 
 import logo from './logo.svg';
 import styles from './App.module.css';
-
-// TODO: listen for events from backend in case cmd args were passed
-// https://tauri.app/v1/api/js/modules/event#listen
+import MemoryGrid from './MemoryGrid';
 
 const App: Component = () => {
   log.attachConsole();
 
   const handleLoad = async () => {
-    const res: string = await invoke('load_elf', { filename: 'test' });
+    const res: string = await invoke('cmd_load_elf', { filename: 'test' });
     log.info("Called loader");
   };
 
   return (
     <div class={styles.App}>
       <header class={styles.header}>
-        <img src={logo} class={styles.logo} alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <button style="color:black;" onClick={handleLoad}>Load ELF</button>
+        {/* <img src={logo} class={styles.logo} alt="logo" /> */}
+        <MemoryGrid />
+        <form>
+          <input type="text" name="elf_filename" />
+          <button style="color:black;" onClick={handleLoad}>Load ELF</button>
+        </form>
       </header>
     </div>
   );

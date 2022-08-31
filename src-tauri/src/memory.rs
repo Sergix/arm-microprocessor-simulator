@@ -1,17 +1,28 @@
 // use tauri::async_runtime::RwLock;
-use tauri::async_runtime::{ Mutex };
+use tauri::{ State, async_runtime::Mutex };
 
 type Byte = u8;
 type HalfWord = u16;
 type Word = u32;
 type AddressSize = u32;
+pub(crate) type MemoryState<'a> = State<'a, Mutex<Memory>>;
+
+pub(crate) const DEFAULT_MEMORY_SIZE: usize = 32768;
+
+// payload for tauri event emitter to send to frontend
+// https://tauri.app/v1/guides/features/events/#global-events-1
+#[derive(Clone, serde::Serialize)]
+pub struct MemoryPayload {
+    pub(crate) loaded: bool,
+    pub(crate) memory_array: Vec<Byte>
+}
 
 // pub static RAM_STATE: Arc<RwLock<RAM>> = Arc::new(RwLock::new(RAM { size: 0, memory_array: vec![0;0] }));
-#[derive(Default)]
-pub struct RAM(pub Mutex<Memory>); 
-
+// #[derive(Default)]
+// pub struct RAM(pub Mutex<Memory>);
 pub struct Memory {
     pub(crate) size: usize,
+    pub(crate) loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
     pub(crate) memory_array: Vec<Byte> // unsigned Byte array
 }
 
@@ -64,6 +75,7 @@ impl Default for Memory {
     fn default() -> Self {
         Memory {
             size: 0,
+            loaded: false,
             memory_array: vec![0; 0]
         }
     }

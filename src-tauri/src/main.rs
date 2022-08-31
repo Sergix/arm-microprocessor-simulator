@@ -4,22 +4,12 @@
 )]
 
 mod loader;
-mod ram;
+mod memory;
 mod options;
 
-use log::info;
-use tauri::{async_runtime::{RwLock, Mutex}, Manager, State};
+use log::trace;
+use tauri::{async_runtime::{RwLock, Mutex, spawn}, Manager};
 use tauri_plugin_log::{fern::colors::ColoredLevelConfig, LogTarget, LoggerBuilder};
-
-#[tauri::command]
-fn load_elf(filename: &str) {
-    // read into RAM and pass reference back
-
-    // verify checksums
-    info!("Attempting to load ELF binary: {}", filename);
-    let result = loader::calculate_checksum(&[0x01, 0x82, 0x03, 0x84]);
-    info!("Checksum: {}", result);
-}
 
 fn main() {
     // logging interface setup
@@ -28,19 +18,21 @@ fn main() {
     let colors = ColoredLevelConfig::default();
 
     // global state defaults
-    options::OPTIONS_STATE.set(RwLock::new(options::Options { memory_size: 32768, elf_file: String::new() }));
+    options::OPTIONS_STATE.set(RwLock::new(options::Options { memory_size: memory::DEFAULT_MEMORY_SIZE, elf_file: String::new() }));
 
     let context = tauri::generate_context!();
     tauri::Builder::default()
         .setup(|app| {
             // setup state used by app handler here since Builder::setup runs before calls to Builder::manage
-            app.manage(Mutex::new(ram::Memory::default()));
+
+            // of type memory::MemoryState
+            app.manage(Mutex::new(memory::Memory::default()));
 
             match app.get_cli_matches() {
                 // `matches` here is a Struct with { args, subcommand }.
                 // `args` is `HashMap<String, ArgData>` where `ArgData` is a struct with { value, occurances }
                 Ok(matches) => {
-                    info!("{:?}", matches);
+                    trace!("{:?}", matches);
 
                     // parse args
                     let opts = options::Options {
@@ -52,12 +44,12 @@ fn main() {
                                     }
                                     None => {
                                         // panic!("ERROR: --mem option value incompatible")
-                                        32768
+                                        memory::DEFAULT_MEMORY_SIZE
                                     }
                                 }
                             }
                             None => {
-                                32768 // default memory size
+                                memory::DEFAULT_MEMORY_SIZE // default memory size
                             }
                         },
                         elf_file: String::from(match matches.args.get("elf-file") {
@@ -73,39 +65,50 @@ fn main() {
                     options::OPTIONS_STATE.set(RwLock::new(opts));
 
                 }
-                Err(E) => {
-                    info!("{}", E)
+                Err(e) => {
+                    trace!("{}", e)
                 }
             }
 
             // https://doc.rust-lang.org/std/sync/struct.RwLock.html
             let opts = options::OPTIONS_STATE.get().blocking_read();
-
             
             // create RAM using memsize
             let handle = app.app_handle();
-            // let state: State<Mutex<ram::Memory>> = handle.state();
-            let state: State<Mutex<ram::Memory>> = handle.state();
-            let mut memory = state.blocking_lock();
-            // let memory = lock.
-            memory.size = opts.memory_size;
-            memory.memory_array.resize(opts.memory_size, 0);
 
-            info!("OPTIONS: {}bytes, {}", opts.memory_size, opts.elf_file);
-            info!("RAM Details: {}bytes, {}", memory.size, memory.memory_array.len());
+            let memory_state: memory::MemoryState = handle.state();
+            let mut memory_lock = memory_state.blocking_lock();
+            memory_lock.size = 20;
+            memory_lock.memory_array.resize(opts.memory_size, 0);
+            
+            trace!("OPTIONS: {}bytes, {}", opts.memory_size, opts.elf_file);
+            trace!("RAM Details: {}bytes, {}", memory_lock.size, memory_lock.memory_array.len());
+
+            // free lock
+            drop(memory_lock);
+
+            // DEBUG-ONLY
+            spawn(async move {
+                loader::load_elf(String::from("test.bin"), handle).await;
+                // loader::load_elf(String::clone(&opts.elf_file), handle).await;
+            });
 
             // if a cmd-line argument file was passed
-            if !opts.elf_file.is_empty() {
-                // load the ELF file into RAM
-                loader::load_elf(String::clone(&opts.elf_file));
+            // TODO: uncomment after testing
+            // if !opts.elf_file.is_empty() {
+            //     // load the ELF file into RAM
+            //     loader::load_elf(String::clone(&opts.elf_file), app.app_handle());
 
-                // TODO: compute checksum
-                // memory.CalculateChecksum();
-            }
+            //     // TODO: compute checksum
+            //     // memory.CalculateChecksum();
+            // }
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_elf])
+        .invoke_handler(tauri::generate_handler![
+            loader::cmd_load_elf,
+            loader::cmd_get_memory
+        ])
         .plugin(
             LoggerBuilder::new()
               .with_colors(colors)
