@@ -444,6 +444,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "state",
  "tauri",
  "tauri-build",
  "tauri-plugin-log",

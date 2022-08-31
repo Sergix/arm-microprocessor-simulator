@@ -1,14 +1,21 @@
+// use tauri::async_runtime::RwLock;
+use tauri::async_runtime::{ Mutex };
+
 type Byte = u8;
 type HalfWord = u16;
 type Word = u32;
 type AddressSize = u32;
 
-pub struct RAM {
+// pub static RAM_STATE: Arc<RwLock<RAM>> = Arc::new(RwLock::new(RAM { size: 0, memory_array: vec![0;0] }));
+#[derive(Default)]
+pub struct RAM(pub Mutex<Memory>); 
+
+pub struct Memory {
     pub(crate) size: usize,
     pub(crate) memory_array: Vec<Byte> // unsigned Byte array
 }
 
-impl RAM {
+impl Memory {
     pub fn ReadWord(&self, address: AddressSize) -> Word {
         0
     }
@@ -50,5 +57,14 @@ impl RAM {
     pub fn ExtractBits() -> Word {
         // static utility
         0
+    }
+}
+
+impl Default for Memory {
+    fn default() -> Self {
+        Memory {
+            size: 0,
+            memory_array: vec![0; 0]
+        }
     }
 }
