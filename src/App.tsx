@@ -11,7 +11,7 @@ const App: Component = () => {
   log.attachConsole();
 
   const handleLoad = async () => {
-    const res: string = await invoke('cmd_load_elf', { filename: 'test' });
+    const res: string = await invoke('cmd_load_elf', { filename: 'test.bin' });
     log.info("Called loader");
   };
 
@@ -19,12 +19,13 @@ const App: Component = () => {
     <div class={styles.App}>
       <header class={styles.header}>
         {/* <img src={logo} class={styles.logo} alt="logo" /> */}
-        <MemoryGrid />
-        <form>
-          <input type="text" name="elf_filename" />
-          <button style="color:black;" onClick={handleLoad}>Load ELF</button>
-        </form>
+        
       </header>
+      <form onSubmit={e => { e.preventDefault(); e.stopPropagation(); }}>
+        <input type="text" name="elf_filename" />
+        <button style="color:black;" onClick={handleLoad}>Load ELF</button>
+      </form>
+      <MemoryGrid />
     </div>
   );
 };

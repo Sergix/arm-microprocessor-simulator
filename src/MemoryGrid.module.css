@@ -1,0 +1,7 @@
+.MemoryGrid {
+    height: 50%;
+    width: 50%;
+    overflow-y: auto;
+    margin-left: auto;
+    margin-right: auto;
+}

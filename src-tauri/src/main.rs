@@ -78,8 +78,10 @@ fn main() {
 
             let memory_state: memory::MemoryState = handle.state();
             let mut memory_lock = memory_state.blocking_lock();
-            memory_lock.size = 20;
-            memory_lock.memory_array.resize(opts.memory_size, 0);
+            memory_lock.size = opts.memory_size;
+
+            let memory_rows: usize = opts.memory_size / 16 as usize;
+            memory_lock.memory_array.resize(memory_rows, [0; 16]);
             
             trace!("OPTIONS: {}bytes, {}", opts.memory_size, opts.elf_file);
             trace!("RAM Details: {}bytes, {}", memory_lock.size, memory_lock.memory_array.len());
@@ -87,17 +89,11 @@ fn main() {
             // free lock
             drop(memory_lock);
 
-            // DEBUG-ONLY
-            spawn(async move {
-                loader::load_elf(String::from("test.bin"), handle).await;
-                // loader::load_elf(String::clone(&opts.elf_file), handle).await;
-            });
-
             // if a cmd-line argument file was passed
-            // TODO: uncomment after testing
             // if !opts.elf_file.is_empty() {
-            //     // load the ELF file into RAM
-            //     loader::load_elf(String::clone(&opts.elf_file), app.app_handle());
+            //     spawn(async move {
+            //          loader::load_elf(String::clone(&opts.elf_file), handle).await;
+            //     });
 
             //     // TODO: compute checksum
             //     // memory.CalculateChecksum();
