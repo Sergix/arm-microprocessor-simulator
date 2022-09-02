@@ -1,23 +1,35 @@
-import { Index, Component, onMount, createSignal, onCleanup, createEffect, indexArray } from "solid-js"
+import { Component, onMount, createSignal, onCleanup, createEffect, indexArray, Show } from "solid-js"
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from "@tauri-apps/api/tauri"
 import * as log from 'tauri-plugin-log-api'
 
 import styles from './MemoryGrid.module.css'
 
+
+const MEMORY_ROW_SIZE = 16;
+
 // from backend memory.rs
 interface IMemoryPayload {
+    checksum: number
     loaded: boolean
-    memory_array: Array<Array<number>>
+    memory_array: Array<number>
+    error: string
 }
 
 const MemoryGrid: Component = () => {
     const [filename, setFilename] = createSignal("")
     const [memory, setMemory] = createSignal(new Array<Array<number>>())
+    const [checksum, setChecksum] = createSignal(0)
 
     createEffect(() => {
         listen('elf_load', ({ payload }: { payload: IMemoryPayload }) => {
-            setMemory(payload.memory_array)
+            // split into row chunks
+            let memory_array = new Array<Array<number>>();
+            while (payload.memory_array.length > 0)
+                memory_array.push(payload.memory_array.splice(0, MEMORY_ROW_SIZE))
+
+            setChecksum(payload.checksum)
+            setMemory(memory_array)
         });
 
         // TODO: get unlistener for unmount (if needed)
@@ -38,9 +50,10 @@ const MemoryGrid: Component = () => {
     })
 
     return (
-        <div>
-            <h1>Memory Grid</h1>
+        <Show when={memory().length > 0}>
+            {/* <span>Checksum: {checksum}</span> */}
             <table class={styles.MemoryGrid} onScroll={() => {}}>
+                <caption>Checksum: <span style="font-family: monospace;">{checksum}</span></caption>
                 
                 {/* https://stackoverflow.com/questions/70819075/solidjs-for-vs-index */}
                 {indexArray(memory, (row, index) => {
@@ -56,7 +69,7 @@ const MemoryGrid: Component = () => {
                     )
                 })}
             </table>
-        </div>
+        </Show>
     )
 }
 

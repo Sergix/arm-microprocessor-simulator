@@ -18,7 +18,7 @@ fn main() {
     let colors = ColoredLevelConfig::default();
 
     // global state defaults
-    options::OPTIONS_STATE.set(RwLock::new(options::Options { memory_size: memory::DEFAULT_MEMORY_SIZE, elf_file: String::new() }));
+    options::OPTIONS_STATE.set(RwLock::new(options::Options::default()));
 
     let context = tauri::generate_context!();
     tauri::Builder::default()
@@ -29,39 +29,11 @@ fn main() {
             app.manage(Mutex::new(memory::Memory::default()));
 
             match app.get_cli_matches() {
-                // `matches` here is a Struct with { args, subcommand }.
-                // `args` is `HashMap<String, ArgData>` where `ArgData` is a struct with { value, occurances }
                 Ok(matches) => {
                     trace!("{:?}", matches);
 
-                    // parse args
-                    let opts = options::Options {
-                        memory_size: match matches.args.get("mem") {
-                            Some(arg) => {
-                                match arg.value.as_u64() {
-                                    Some(u) => {
-                                        u as usize
-                                    }
-                                    None => {
-                                        // panic!("ERROR: --mem option value incompatible")
-                                        memory::DEFAULT_MEMORY_SIZE
-                                    }
-                                }
-                            }
-                            None => {
-                                memory::DEFAULT_MEMORY_SIZE // default memory size
-                            }
-                        },
-                        elf_file: String::from(match matches.args.get("elf-file") {
-                            Some(arg) => {
-                                arg.value.to_string()
-                            }
-                            None => {
-                                String::new()
-                            }
-                        })
-                    };
-
+                    let mut opts = options::Options::default();
+                    opts.Parse(matches);
                     options::OPTIONS_STATE.set(RwLock::new(opts));
 
                 }
@@ -69,6 +41,23 @@ fn main() {
                     trace!("{}", e)
                 }
             }
+
+            // DEBUG
+
+            let mut mem_test: memory::Memory = memory::Memory::default();
+            mem_test.memory_array[0] = 25;
+            mem_test.memory_array[1] = 0xFC;
+            mem_test.memory_array[2] = 0xAD;
+            mem_test.memory_array[3] = 0x1E;
+            mem_test.memory_array[4] = 0xFC;
+
+            // trace!("{}", mem_test.ReadWord(0));
+            // trace!("{}", mem_test.TestFlag(0, 3));
+            // trace!("{}", mem_test.TestFlag(0, 5));
+            // trace!("{}", mem_test.TestFlag(1, 3));
+            // trace!("{}", mem_test.TestFlag(1, 11));
+
+            // END DEBUG
 
             // https://doc.rust-lang.org/std/sync/struct.RwLock.html
             let opts = options::OPTIONS_STATE.get().blocking_read();
@@ -78,26 +67,22 @@ fn main() {
 
             let memory_state: memory::MemoryState = handle.state();
             let mut memory_lock = memory_state.blocking_lock();
-            memory_lock.size = opts.memory_size;
 
-            let memory_rows: usize = opts.memory_size / 16 as usize;
-            memory_lock.memory_array.resize(memory_rows, [0; 16]);
+            memory_lock.size = opts.memory_size;
+            memory_lock.memory_array.resize(opts.memory_size, 0);
             
             trace!("OPTIONS: {}bytes, {}", opts.memory_size, opts.elf_file);
-            trace!("RAM Details: {}bytes, {}", memory_lock.size, memory_lock.memory_array.len());
+            trace!("RAM Details: {}bytes, {}actual", memory_lock.size, memory_lock.memory_array.len());
 
             // free lock
             drop(memory_lock);
 
             // if a cmd-line argument file was passed
-            // if !opts.elf_file.is_empty() {
-            //     spawn(async move {
-            //          loader::load_elf(String::clone(&opts.elf_file), handle).await;
-            //     });
-
-            //     // TODO: compute checksum
-            //     // memory.CalculateChecksum();
-            // }
+            if !opts.elf_file.is_empty() {
+                spawn(async move {
+                     loader::load_elf(String::clone(&opts.elf_file), handle).await;
+                });
+            }
 
             Ok(())
         })

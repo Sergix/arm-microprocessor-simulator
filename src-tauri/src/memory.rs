@@ -1,4 +1,5 @@
-// use tauri::async_runtime::RwLock;
+use log::trace;
+use log::error;
 use tauri::{ State, async_runtime::Mutex };
 use ts_rs::TS;
 
@@ -6,6 +7,7 @@ pub(crate) type Byte = u8;
 type HalfWord = u16;
 type Word = u32;
 type AddressSize = u32;
+type Checksum = u32;
 pub(crate) type MemoryState<'a> = State<'a, Mutex<Memory>>;
 
 pub(crate) const DEFAULT_MEMORY_SIZE: usize = 32768;
@@ -15,67 +17,190 @@ pub(crate) const DEFAULT_MEMORY_SIZE: usize = 32768;
 #[derive(Clone, serde::Serialize, TS)]
 #[ts(export_to = "../src/types/MemoryPayload.ts")]
 pub struct MemoryPayload {
+    pub(crate) checksum: Checksum,
     pub(crate) loaded: bool,
-    pub(crate) memory_array: Vec<[Byte; 16]>
+    pub(crate) memory_array: Vec<Byte>,
+    pub(crate) error: String
+}
+
+impl Default for MemoryPayload {
+    fn default() -> Self {
+        MemoryPayload {
+            checksum: 0,
+            loaded: false,
+            memory_array: vec![0, 0],
+            error: String::from("")
+        }
+    }
 }
 
 pub struct Memory {
+    pub(crate) checksum: Checksum,
     pub(crate) size: usize,
     pub(crate) loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
-    pub(crate) memory_array: Vec<[Byte; 16]> // unsigned Byte array
+    pub(crate) memory_array: Vec<Byte> // unsigned Byte array
 }
 
 impl Memory {
-    pub fn ReadWord(&self, address: AddressSize) -> Word {
-        0
+    #[allow(non_snake_case)]
+    pub fn ReadWord(&self, addr: AddressSize) -> Word {
+        // TODO: make sure doesnt read past end
+
+        if addr % 4 != 0 {
+            error!("Memory[ReadWord]: Word address not valid");
+            return 0
+        }
+
+        let w0: Word = *self.memory_array.get(addr as usize).unwrap() as Word;
+        let w1: Word = *self.memory_array.get((addr + 1) as usize).unwrap() as Word;
+        let w2: Word = *self.memory_array.get((addr + 2) as usize).unwrap() as Word;
+        let w3: Word = *self.memory_array.get((addr + 3) as usize).unwrap() as Word;
+
+        (w3 << 24) | (w2 << 16) | (w1 << 8) | w0
     }
 
-    pub fn WriteWord(&self, address: AddressSize, value: Word) {
+    #[allow(non_snake_case)]
+    pub fn WriteWord(&mut self, addr: AddressSize, value: Word) {
+        // TODO: make sure doesnt write past end
 
+        if addr % 4 != 0 {
+            error!("Memory[WriteWord]: Word address not valid");
+            return
+        }
+        // TODO: little-endian, not big-endian
+
+        let b0: Byte = ((value >> 24) & 0xff) as Byte;
+        let b1: Byte = ((value >> 16) & 0xff) as Byte;
+        let b2: Byte = ((value >> 8) & 0xff) as Byte;
+        let b3: Byte = (value & 0xff) as Byte;
+
+        self.memory_array[addr as usize] = b3;
+        self.memory_array[(addr + 1) as usize] = b2;
+        self.memory_array[(addr + 2) as usize] = b1;
+        self.memory_array[(addr + 3) as usize] = b0;
     }
 
-    pub fn ReadHalfWord(&self, address: AddressSize) -> HalfWord {
-        0
+    #[allow(non_snake_case)]
+    pub fn ReadHalfWord(&self, addr: AddressSize) -> HalfWord {
+        // TODO: make sure doesnt read past end
+
+        if addr % 2 != 0 {
+            error!("Memory[WriteWord]: Word address not valid");
+            return 0
+        }
+
+        let hw0: HalfWord = *self.memory_array.get(addr as usize).unwrap() as HalfWord;
+        let hw1: HalfWord = *self.memory_array.get((addr + 1) as usize).unwrap() as HalfWord;
+
+        // little- to big-endian
+        (hw1 << 8) | hw0
     }
 
-    pub fn WriteHalfWord(&self, address: AddressSize, value: HalfWord) {
+    #[allow(non_snake_case)]
+    pub fn WriteHalfWord(&mut self, addr: AddressSize, value: HalfWord) {
+        // TODO: make sure doesnt write past end
 
-    }
+        if addr % 2 != 0 {
+            error!("Memory[WriteWord]: Word address not valid");
+            return
+        }
 
-    pub fn ReadByte(&self, address: AddressSize) -> Byte {
-        0
-    }
-
-    pub fn WriteByte(&self, address: AddressSize, value: Byte) {
-
-    }
-
-    pub fn CalculateChecksum(&self) {
+        // example:
+        //  0x74 EC
+        //    b0 b1
+        let b0: Byte = ((value >> 8) & 0xff) as Byte;
+        let b1: Byte = (value & 0xff) as Byte;
         
+        // big endian: b0 b1
+        // little endian: b1 b0
+        self.memory_array[addr as usize] = b1;
+        self.memory_array[(addr + 1) as usize] = b0;
     }
 
-    pub fn TestFlag(&self, address: AddressSize, bit: u8) {
+    #[allow(non_snake_case)]
+    pub fn ReadByte(&self, addr: AddressSize) -> Byte {
+        *self.memory_array.get(addr as usize).unwrap() as Byte
+    }
+
+    #[allow(non_snake_case)]
+    pub fn WriteByte(&mut self, addr: AddressSize, value: Byte) {
+        self.memory_array[addr as usize] = value;
+    }
+
+    #[allow(non_snake_case)]
+    pub fn CalculateChecksum(&self) -> Checksum {
+        let mut checksum: u32 = 0;
+    
+        for address in 0..self.memory_array.len() {
+            checksum += self.ReadByte(address as AddressSize) as u32 ^ (address as u32);
+        }
+    
+        return checksum;
+    }
+
+    #[allow(non_snake_case)]
+    pub fn TestFlag(&self, addr: AddressSize, bit: u8) -> bool {
         // bit is in the range of [0..31]
-        // ReadWord(address)
+        if bit > 31 {
+            panic!("Memory[TestFlag]: bit is out of range")
+        }
+        
+        let w: Word = self.ReadWord(addr);
+        trace!("{}", w);
+
+        if (w >> bit) & 1 == 1 { true } else { false }
     }
 
-    pub fn SetFlag(&self, address: AddressSize, bit: u8, flag: bool) {
+    #[allow(non_snake_case)]
+    pub fn SetFlag(&mut self, addr: AddressSize, bit: u8, flag: bool) {
         // bit is in the range of [0..31]
-        // ReadWord(address)
+        if bit > 31 {
+            panic!("Memory[SetFlag]: bit is out of range")
+        }
+
+        let mut w: Word = self.ReadWord(addr);
+
+        if flag {
+            // set bit
+            w |= 1 << bit;
+
+        } else {
+            // clear bit
+            w &= !(1 << bit);
+        }
+
+        self.WriteWord(addr, w);
     }
 
-    pub fn ExtractBits() -> Word {
-        // static utility
-        0
+    // static utility
+    #[allow(non_snake_case)]
+    pub fn ExtractBits(w: Word, startBit: u8, endBit: u8) -> Word {
+        // bit is in the range of [0..31]
+        if startBit > 31 || endBit > 31{
+            panic!("Memory[ExtractBits]: bit is out of range")
+        }
+
+        if startBit > endBit {
+            panic!("Memory[ExtractBits]: startBit must be <= endBit");
+        }
+
+        let mut mask: Word = 0;
+        for i in startBit..endBit {
+            let bit: Word = 1 << i;
+
+            mask |= bit;
+        }
+        mask & w
     }
 }
 
 impl Default for Memory {
     fn default() -> Self {
         Memory {
-            size: 0,
+            checksum: 0,
+            size: DEFAULT_MEMORY_SIZE,
             loaded: false,
-            memory_array: vec![[0; 16]]
+            memory_array: vec![0; DEFAULT_MEMORY_SIZE]
         }
     }
 }

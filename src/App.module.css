@@ -3,12 +3,7 @@
   background-color: #282c34;
   min-height: 100vh;
   color: white;
-}
 
-.logo {
-  animation: logo-spin infinite 20s linear;
-  height: 40vmin;
-  pointer-events: none;
 }
 
 .header {
@@ -25,11 +20,43 @@
   color: #b318f0;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* hide actual input */
+/* https://stackoverflow.com/a/25825731 */
+.file_loader {
+  display: none;
+}
+
+input[type="text"] {
+  background-color: #282c34;
+  border-style: solid;
+  border-radius: 3px;
+  border-size: 1px;
+  color: white;
+  padding: 4px;
+  margin-right: 4px;
+}
+
+.file_loader_button {
+  background-color: #282c44;
+  color: white;
+  border-style: inset;
+  border-radius: 3px;
+  border-width: 1px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 7px;
+  padding-bottom: 8px;
+  transition: background-color 0.1s ease-out;
+}
+
+.file_loader_button:hover {
+  background-color: #282c74;
+}
+
+.file_loader_button:active {
+  background-color: #282c94;
+}
+
+.filename {
+  font-family: monospace;
 }
