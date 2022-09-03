@@ -1,14 +1,10 @@
 use crate::memory;
-
-use state::Storage;
-use tauri::{async_runtime::RwLock, api::cli::Matches};
-
-// https://docs.rs/state/latest/state/#readwrite-singleton
-pub static OPTIONS_STATE: Storage<RwLock<Options>> = Storage::new();
+use tauri::{api::cli::Matches};
+use log::trace;
 
 pub struct Options {
-    pub(crate) memory_size: usize,
-    pub(crate) elf_file: String
+    pub memory_size: usize,
+    pub elf_file: String
 }
 
 impl Options {
@@ -22,6 +18,7 @@ impl Options {
                 match arg.value.as_u64() {
                     Some(u) => {
                         // TODO: verify mem-size is <= 1MB
+                        trace!("Parse: mem {}", u);
                         u as usize
                     }
                     None => {
@@ -37,6 +34,12 @@ impl Options {
 
         self.elf_file = String::from(match matches.args.get("elf-file") {
             Some(arg) => {
+                // skip over non-string values in case a falsy value is passed
+                if !arg.value.is_string() {
+                    return ()
+                }
+
+                trace!("Parse: elf_file {}", arg.value.to_string());
                 arg.value.to_string()
             }
             None => {

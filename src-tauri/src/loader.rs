@@ -1,21 +1,23 @@
-use crate::memory::{self};
+use crate::memory_state::{ MemoryState };
+use crate::options_state::{ OptionsState };
 
+use lib::memory;
 use log::trace;
 use log::error;
-use object::BigEndian;
+use normpath::PathExt;
 use object::Endianness;
 use object::read::elf::FileHeader;
 use object::read::elf::ProgramHeader;
-use object::read::elf::{ ElfFile, ElfFile32 };
 use object::elf;
+use std::path:: Path;
 use tauri::{AppHandle, Manager};
-use std::{fs::{File}, io::Read};
 
 #[tauri::command]
-pub async fn cmd_get_memory(memory_state: memory::MemoryState<'_>) -> Result<memory::MemoryPayload, memory::MemoryPayload> {
+pub async fn cmd_get_memory(memory_state: MemoryState<'_>, options_state: OptionsState<'_>) -> Result<memory::MemoryPayload, memory::MemoryPayload> {
     trace!("cmd_get_memory: checking if ELF has been loaded...");
     
     let memory_lock = memory_state.lock().await;
+    let options_lock = options_state.lock().await;
     
     if memory_lock.loaded {
         trace!("cmd_get_memory: ELF has already been loaded. Passing to frontend...");
@@ -23,7 +25,8 @@ pub async fn cmd_get_memory(memory_state: memory::MemoryState<'_>) -> Result<mem
             checksum: memory_lock.checksum,
             loaded: true,
             memory_array: memory_lock.memory_array.clone(),
-            error: "".into()
+            error: "".into(),
+            filename: String::clone(&options_lock.elf_file)
         })
     } else {
         trace!("cmd_get_memory: ELF has not been loaded.");
@@ -32,7 +35,7 @@ pub async fn cmd_get_memory(memory_state: memory::MemoryState<'_>) -> Result<mem
 }
 
 #[tauri::command]
-pub async fn cmd_load_elf(filename: String, app_handle: AppHandle, memory_state: memory::MemoryState<'_>) -> Result<(), ()> {
+pub async fn cmd_load_elf(filename: String, app_handle: AppHandle, memory_state: MemoryState<'_>) -> Result<(), ()> {
     trace!("cmd_load_elf: attempting to load ELF binary: {}", filename);
     // load elf file, await
     // automatically emits
@@ -53,20 +56,37 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
 
     trace!("load_elf: opening {}...", filename);
     
-    let state: memory::MemoryState = app_handle.state();
-    let mut memory_lock = state.lock().await;
+    let app_memory_state: MemoryState = app_handle.state();
+    let mut memory_lock = app_memory_state.lock().await;
     let memory_size: usize = memory_lock.size;
+
+    let app_options_state: OptionsState = app_handle.state();
+    let options_lock = app_options_state.lock().await;
 
     // clear memory
     memory_lock.memory_array.clear();
     memory_lock.memory_array.resize(memory_size, 0);
 
+    // remove chars possibly passed by shell
+    // https://stackoverflow.com/a/49856591
+    let trimmed_filename = filename.trim_matches(&['"', '\'', ' '] as &[_]);
+
+    // resolve path
+    // https://crates.io/crates/normpath
+    let path = Path::new(trimmed_filename);
+    let path_absolute = match path.normalize() {
+        Ok(p) => { p }
+        Err(e) => {
+            error!("load_elf: could not normalize path: {}", e);
+            return
+        }
+    };
+    
     // open and read file
-    // let mut f = File::open().unwrap();
-    let bin_data_result = std::fs::read(filename);
+    let bin_data_result = std::fs::read(path_absolute);
     match bin_data_result {
         Ok(bin_data) => {
-            let mut error: String = "".into();
+            let error: String = "".into();
 
             // load elf file
             let elf_object = elf::FileHeader32::<Endianness>::parse(&*bin_data).unwrap();
@@ -97,7 +117,8 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
                 checksum: memory_lock.checksum,
                 loaded: memory_lock.loaded,
                 memory_array: memory_lock.memory_array.clone(),
-                error: error.clone()
+                error: error.clone(),
+                filename: String::clone(&options_lock.elf_file)
             }).unwrap();
         }
         Err(e) => {

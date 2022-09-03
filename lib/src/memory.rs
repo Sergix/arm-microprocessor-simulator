@@ -1,28 +1,24 @@
 use log::trace;
 use log::error;
-use object::Endian;
 use object::Endianness;
-use tauri::{ State, async_runtime::Mutex };
-use ts_rs::TS;
 
-pub(crate) type Byte = u8;
+pub type Byte = u8;
 type HalfWord = u16;
 type Word = u32;
 type AddressSize = u32;
 type Checksum = u32;
-pub(crate) type MemoryState<'a> = State<'a, Mutex<Memory>>;
 
-pub(crate) const DEFAULT_MEMORY_SIZE: usize = 32768;
+pub const DEFAULT_MEMORY_SIZE: usize = 32768;
 
 // payload for tauri event emitter to send to frontend
 // https://tauri.app/v1/guides/features/events/#global-events-1
-#[derive(Clone, serde::Serialize, TS)]
-#[ts(export_to = "../src/types/MemoryPayload.ts")]
+#[derive(Clone, serde::Serialize)]
 pub struct MemoryPayload {
-    pub(crate) checksum: Checksum,
-    pub(crate) loaded: bool,
-    pub(crate) memory_array: Vec<Byte>,
-    pub(crate) error: String
+    pub checksum: Checksum,
+    pub loaded: bool,
+    pub memory_array: Vec<Byte>,
+    pub error: String,
+    pub filename: String
 }
 
 impl Default for MemoryPayload {
@@ -31,17 +27,18 @@ impl Default for MemoryPayload {
             checksum: 0,
             loaded: false,
             memory_array: vec![0, 0],
-            error: String::from("")
+            error: String::from(""),
+            filename: String::from("")
         }
     }
 }
 
 pub struct Memory {
-    pub(crate) checksum: Checksum,
-    pub(crate) endianness: Endianness,
-    pub(crate) loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
-    pub(crate) memory_array: Vec<Byte>, // unsigned Byte array
-    pub(crate) size: usize
+    pub checksum: Checksum,
+    pub endianness: Endianness,
+    pub loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
+    pub memory_array: Vec<Byte>, // unsigned Byte array
+    pub size: usize
 }
 
 impl Memory {
@@ -227,5 +224,213 @@ impl Default for Memory {
             memory_array: vec![0; DEFAULT_MEMORY_SIZE],
             size: DEFAULT_MEMORY_SIZE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_ReadWord() {
+        let mut mem = Memory::default();
+
+        mem.memory_array[0] = 0x05;
+        mem.memory_array[1] = 0xFF;
+        mem.memory_array[2] = 0x06;
+        mem.memory_array[3] = 0xA0;
+
+        let be = mem.ReadWord(0);
+        assert_eq!(be, 0x05FF06A0);
+        
+        mem.endianness = Endianness::Little;
+        assert_eq!(mem.ReadWord(0), 0xA006FF05);
+        
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_ReadWord_AlignmentError() {
+        let mut mem = Memory::default();
+
+        mem.memory_array[3] = 0xFF;
+
+        assert_eq!(mem.ReadWord(3), 0);
+    }
+    
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_WriteWord() {
+        let mut mem = Memory::default();
+
+        mem.WriteWord(0, 0x05FF06A0);
+        
+        assert_eq!(mem.memory_array[0], 0x05);
+        assert_eq!(mem.memory_array[1], 0xFF);
+        assert_eq!(mem.memory_array[2], 0x06);
+        assert_eq!(mem.memory_array[3], 0xA0);
+
+        mem.endianness = Endianness::Little;
+        mem.WriteWord(0, 0x05FF06A0);
+
+        assert_eq!(mem.memory_array[0], 0xA0);
+        assert_eq!(mem.memory_array[1], 0x06);
+        assert_eq!(mem.memory_array[2], 0xFF);
+        assert_eq!(mem.memory_array[3], 0x05);
+    }
+    
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_ReadHalfWord() {
+        let mut mem = Memory::default();
+        
+        mem.memory_array[0] = 0x05;
+        mem.memory_array[1] = 0xFF;
+        
+        assert_eq!(mem.ReadHalfWord(0), 0x05FF);
+        
+        mem.endianness = Endianness::Little;
+        assert_eq!(mem.ReadHalfWord(0), 0xFF05);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_ReadHalfWord_AlignmentError() {
+        let mut mem = Memory::default();
+
+        mem.memory_array[1] = 0xFF;
+
+        assert_eq!(mem.ReadHalfWord(1), 0);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_WriteHalfWord() {
+        let mut mem = Memory::default();
+
+        mem.WriteHalfWord(0, 0x05FF);
+        
+        assert_eq!(mem.memory_array[0], 0x05);
+        assert_eq!(mem.memory_array[1], 0xFF);
+
+        mem.endianness = Endianness::Little;
+        mem.WriteHalfWord(0, 0x05FF);
+
+        assert_eq!(mem.memory_array[0], 0xFF);
+        assert_eq!(mem.memory_array[1], 0x05);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_ReadByte() {
+        let mut mem = Memory::default();
+        
+        mem.memory_array[0] = 0x05;
+        
+        assert_eq!(mem.ReadByte(0), 0x05);
+        
+        mem.endianness = Endianness::Little;
+        assert_eq!(mem.ReadByte(0), 0x05);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_WriteByte() {
+        let mut mem = Memory::default();
+        
+        mem.WriteByte(0, 0x05);
+        
+        assert_eq!(mem.memory_array[0], 0x05);
+
+        mem.endianness = Endianness::Little;
+        mem.WriteByte(0, 0x05);
+
+        assert_eq!(mem.memory_array[0], 0x05);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_CalculateChecksum() {
+        let mut mem = Memory::default();
+        
+        mem.memory_array[0] = 0x01;
+        mem.memory_array[1] = 0x82;
+        mem.memory_array[2] = 0x03;
+        mem.memory_array[3] = 0x84;
+
+        assert_eq!(mem.CalculateChecksum(), 536854790);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_TestFlag() {
+        let mut mem = Memory::default();
+
+        mem.memory_array[0] = 0x1C;
+        mem.memory_array[1] = 0xCB;
+        mem.memory_array[2] = 0x1D;
+        mem.memory_array[3] = 0x1A;
+
+        assert_eq!(mem.TestFlag(0, 11), true);
+        assert_eq!(mem.TestFlag(0, 13), false);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    #[should_panic]
+    fn test_TestFlag_BitRangeError() {
+        let mem = Memory::default();
+
+        mem.TestFlag(0, 32);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_SetFlag() {
+        let mut mem = Memory::default();
+
+        mem.SetFlag(0, 12, true);
+        assert_eq!(mem.memory_array[2], 0x10);
+
+        mem.SetFlag(0, 12, false);
+        assert_eq!(mem.memory_array[2], 0x00);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    #[should_panic]
+    fn test_SetFlag_BitRangeError() {
+        let mut mem = Memory::default();
+
+        mem.SetFlag(0, 32, true);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_ExtractBits() {
+        let w = Memory::ExtractBits(0xC7A2511E, 5, 20);
+        assert_eq!(w, 0x25100);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    #[should_panic]
+    fn test_ExtractBits_InvalidStartBit() {
+        Memory::ExtractBits(0x0, 32, 0);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    #[should_panic]
+    fn test_ExtractBits_InvalidEndBit() {
+        Memory::ExtractBits(0x0, 0, 32);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    #[should_panic]
+    fn test_ExtractBits_BitInequality() {
+        Memory::ExtractBits(0x0, 12, 10);
     }
 }

@@ -1,10 +1,10 @@
 [package]
 name = "cps310-simulator"
-version = "0.0.0"
-description = "A Tauri App"
+version = "0.1.0"
+description = "ARMSim"
 authors = ["you"]
 license = ""
-repository = ""
+repository = "https://github.com/bjucps310/cps310-simulator-Sergix"
 edition = "2021"
 rust-version = "1.57"
 
@@ -14,8 +14,10 @@ rust-version = "1.57"
 tauri-build = { version = "1.0.0", features = [] }
 
 [dependencies]
+lib = { path = "../lib" }
 log = "0.4.17"
 fern = "0.6"
+normpath = "0.3.2"
 object = "0.29.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -24,9 +26,6 @@ state = "0.5"
 tauri = { version = "1.0.0", features = ["api-all", "cli", "devtools"] }
 tokio = { version = "1", features = ["full"] }
 ts-rs = "6.1"
-
-# [dependencies.local_armsim]
-# path = "../src"
 
 [dependencies.tauri-plugin-log]
 git = "https://github.com/tauri-apps/tauri-plugin-log"
