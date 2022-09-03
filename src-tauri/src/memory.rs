@@ -1,5 +1,7 @@
 use log::trace;
 use log::error;
+use object::Endian;
+use object::Endianness;
 use tauri::{ State, async_runtime::Mutex };
 use ts_rs::TS;
 
@@ -36,12 +38,16 @@ impl Default for MemoryPayload {
 
 pub struct Memory {
     pub(crate) checksum: Checksum,
-    pub(crate) size: usize,
+    pub(crate) endianness: Endianness,
     pub(crate) loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
-    pub(crate) memory_array: Vec<Byte> // unsigned Byte array
+    pub(crate) memory_array: Vec<Byte>, // unsigned Byte array
+    pub(crate) size: usize
 }
 
 impl Memory {
+    // TODO: big- and little- endian
+    // have flag in each method that is passed from global tauri state
+
     #[allow(non_snake_case)]
     pub fn ReadWord(&self, addr: AddressSize) -> Word {
         // TODO: make sure doesnt read past end
@@ -56,7 +62,11 @@ impl Memory {
         let w2: Word = *self.memory_array.get((addr + 2) as usize).unwrap() as Word;
         let w3: Word = *self.memory_array.get((addr + 3) as usize).unwrap() as Word;
 
-        (w3 << 24) | (w2 << 16) | (w1 << 8) | w0
+        if self.endianness == Endianness::Little {
+            (w3 << 24) | (w2 << 16) | (w1 << 8) | w0
+        } else {
+            (w0 << 24) | (w1 << 16) | (w2 << 8) | w3
+        }
     }
 
     #[allow(non_snake_case)]
@@ -67,17 +77,23 @@ impl Memory {
             error!("Memory[WriteWord]: Word address not valid");
             return
         }
-        // TODO: little-endian, not big-endian
 
         let b0: Byte = ((value >> 24) & 0xff) as Byte;
         let b1: Byte = ((value >> 16) & 0xff) as Byte;
         let b2: Byte = ((value >> 8) & 0xff) as Byte;
         let b3: Byte = (value & 0xff) as Byte;
 
-        self.memory_array[addr as usize] = b3;
-        self.memory_array[(addr + 1) as usize] = b2;
-        self.memory_array[(addr + 2) as usize] = b1;
-        self.memory_array[(addr + 3) as usize] = b0;
+        if self.endianness == Endianness::Little {
+            self.memory_array[addr as usize] = b3;
+            self.memory_array[(addr + 1) as usize] = b2;
+            self.memory_array[(addr + 2) as usize] = b1;
+            self.memory_array[(addr + 3) as usize] = b0;
+        } else {
+            self.memory_array[addr as usize] = b0;
+            self.memory_array[(addr + 1) as usize] = b1;
+            self.memory_array[(addr + 2) as usize] = b2;
+            self.memory_array[(addr + 3) as usize] = b3;
+        }
     }
 
     #[allow(non_snake_case)]
@@ -92,8 +108,11 @@ impl Memory {
         let hw0: HalfWord = *self.memory_array.get(addr as usize).unwrap() as HalfWord;
         let hw1: HalfWord = *self.memory_array.get((addr + 1) as usize).unwrap() as HalfWord;
 
-        // little- to big-endian
-        (hw1 << 8) | hw0
+        if self.endianness == Endianness::Little {
+            (hw1 << 8) | hw0
+        } else {
+            (hw0 << 8) | hw1
+        }
     }
 
     #[allow(non_snake_case)]
@@ -113,8 +132,13 @@ impl Memory {
         
         // big endian: b0 b1
         // little endian: b1 b0
-        self.memory_array[addr as usize] = b1;
-        self.memory_array[(addr + 1) as usize] = b0;
+        if self.endianness == Endianness::Little {
+            self.memory_array[addr as usize] = b1;
+            self.memory_array[(addr + 1) as usize] = b0;
+        } else {
+            self.memory_array[addr as usize] = b0;
+            self.memory_array[(addr + 1) as usize] = b1;
+        }
     }
 
     #[allow(non_snake_case)]
@@ -198,9 +222,10 @@ impl Default for Memory {
     fn default() -> Self {
         Memory {
             checksum: 0,
-            size: DEFAULT_MEMORY_SIZE,
+            endianness: Endianness::Big,
             loaded: false,
-            memory_array: vec![0; DEFAULT_MEMORY_SIZE]
+            memory_array: vec![0; DEFAULT_MEMORY_SIZE],
+            size: DEFAULT_MEMORY_SIZE
         }
     }
 }

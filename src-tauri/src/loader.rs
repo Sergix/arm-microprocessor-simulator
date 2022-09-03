@@ -2,6 +2,12 @@ use crate::memory::{self};
 
 use log::trace;
 use log::error;
+use object::BigEndian;
+use object::Endianness;
+use object::read::elf::FileHeader;
+use object::read::elf::ProgramHeader;
+use object::read::elf::{ ElfFile, ElfFile32 };
+use object::elf;
 use tauri::{AppHandle, Manager};
 use std::{fs::{File}, io::Read};
 
@@ -55,28 +61,38 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     memory_lock.memory_array.clear();
     memory_lock.memory_array.resize(memory_size, 0);
 
-    // open file
-    let mut f = File::open(filename).unwrap();
-    match f.read(&mut memory_lock.memory_array) {
-        Ok(_) => {
+    // open and read file
+    // let mut f = File::open().unwrap();
+    let bin_data_result = std::fs::read(filename);
+    match bin_data_result {
+        Ok(bin_data) => {
             let mut error: String = "".into();
 
-            // verify if valid ELF file
-            if *memory_lock.memory_array.get(0).unwrap() != 0x7F as u8
-                || *memory_lock.memory_array.get(0).unwrap() != 0x45 as u8
-                || *memory_lock.memory_array.get(0).unwrap() != 0x4c as u8
-                || *memory_lock.memory_array.get(0).unwrap() != 0x46 as u8 {
-                    memory_lock.loaded = false;
-                    error = "Failed to load ELF binary".into();
-                    
-                    error!("load_elf: invalid elf file");
-                } else {
-                    trace!("load_elf: loaded ELF");
+            // load elf file
+            let elf_object = elf::FileHeader32::<Endianness>::parse(&*bin_data).unwrap();
+            let endianness = elf_object.endian().unwrap();
+
+            // loop over number program header segments (e_phnum)
+            for segment in elf_object.program_headers(endianness, &*bin_data).unwrap() {
+                // get size of segment (p_memsz)
+                let memsz = segment.p_memsz(endianness);
+
+                // load into specified address in RAM (p_paddr)
+                let paddr = segment.p_paddr(endianness);
+
+                trace!("load_elf: {}memsz {}paddr", memsz, paddr);
+
+                // write segment data to memory starting at paddr
+                let segment_data = segment.data(endianness, &*bin_data).unwrap();
+                for i in 0..(memsz - 1) {
+                    memory_lock.WriteByte(paddr + i, segment_data[i as usize] as u8);
                 }
-
-
+            }
+        
             memory_lock.checksum = memory_lock.CalculateChecksum();
+            memory_lock.endianness = endianness;
             memory_lock.loaded = true;
+
             app_handle.emit_all("elf_load", memory::MemoryPayload {
                 checksum: memory_lock.checksum,
                 loaded: memory_lock.loaded,
