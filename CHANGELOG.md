@@ -6,7 +6,7 @@ Each *week* contains the days the project was worked on, and each day contains t
 
 1. Progress — what was accomplished, and how long it took
 2. Sources (optional) — important references
-3. Tests (optional) — any significant tests that were passed
+3. Tests Passed (optional) — any significant tests that were passed
 
 If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**) is to be added at the top of the day's details.
 
@@ -20,9 +20,9 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 - Setup SolidJS and modified project directory to build with Vite
 
 #### Sources
-- https://tauri.app/v1/guides/getting-started/setup/html-css-js
-- https://github.com/lukethacoder/tauri-solid-example
-- https://docs.solidjs.com/tutorials/getting-started-with-solid/installing-solid
+- [Setting up a Tauri application](https://tauri.app/v1/guides/getting-started/setup/html-css-js)
+- [Setting up a SolidJS application](https://docs.solidjs.com/tutorials/getting-started-with-solid/installing-solid)
+- [Tauri + SolidJS example](https://github.com/lukethacoder/tauri-solid-example)
 
 ### 8-27-22
 
@@ -32,12 +32,92 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 - Researched Rust unit testing interfaces
 
 #### Sources
-- https://github.com/tauri-apps/tauri-plugin-log
-- https://docs.rs/log/latest/log/
-- https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html
+- [Tauri logging plugin](https://github.com/tauri-apps/tauri-plugin-log)
+- [Rust logging crate](https://docs.rs/log/latest/log/)
+- [Unit testing library examples](https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html)
 
 ## Week 2
 
-## Week 3
+### 8-28-22 [4hrs]
 
-## Week 4
+#### Progress
+
+- Scaffolded more of the project's classes
+- Worked on implementing global state management using Rust's multithreading Arc and Mutex structs
+- Debugged difficulties with command-line arguments
+
+#### Sources
+
+- [Tauri state management example](https://github.com/tauri-apps/tauri/blob/dev/examples/state/main.rs)
+- [Rust CLAP (Command-Line Argument Parser)](https://docs.rs/clap/latest/clap/_derive/)
+
+### 8-29-22 [2.5hrs]
+
+#### Progress
+
+- Debugged more difficulties with command-line arguments
+- Debugged issues with accessing global application state and building the application
+
+#### Sources
+
+- [Discussion thread on managing Tauri state with threads](https://github.com/tauri-apps/tauri/discussions/3059)
+
+### 8-30-22 [2.5hrs]
+
+#### Progress
+
+- More working with Rust's thread management model and the Tauri application state
+- Added Tauri's built-in state management to access and manage the global Memory class
+
+#### Sources
+
+- [Tauri State Manager](https://docs.rs/tauri/1.0.0-beta.0/tauri/trait.Manager.html)
+
+### 8-31-22 [3.5hrs]
+
+#### Progress
+
+- Added Tauri commands and events to communicate state between frontend and backend
+- Added MemoryGrid view to get Memory data from backend
+
+#### Sources
+
+- [Tauri Command interface (frontend -> backend)](https://tauri.app/v1/guides/features/command)
+- [Tauri Event interface (frontend <-> backend)](https://tauri.app/v1/guides/features/events/)
+
+### 9-1-22 [5.25hrs]
+
+#### Progress
+
+- Added frontend view reactivity models for loading ELF files and displaying the checksum and memory contents to the window
+- Added memory class methods
+
+#### Sources
+
+- [SolidJS array reactivity](https://www.solidjs.com/docs/latest#indexarray)
+
+### 9-2-22 [2.25hrs]
+
+#### Progress
+
+- Updated ELF file reader to parse segments and binary data and properly load to RAM
+- Fixed Memory methods to Read/Write in both big- and little-endian
+
+#### Sources
+
+- [Rust object (ELF) library](https://docs.rs/object/0.20.0/object/read/elf/)
+
+#### Tests Passed
+
+- Checksum validation for `test1.exe`, `test2.exe`, `test3.exe`
+
+### 9-3-22
+
+**Checkpoint Reached: Checkpoint 1: Loader**
+
+#### Progress
+
+
+#### Sources
+
+#### Tests Passed

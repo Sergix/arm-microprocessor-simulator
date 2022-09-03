@@ -25,6 +25,9 @@ tauri = { version = "1.0.0", features = ["api-all", "cli", "devtools"] }
 tokio = { version = "1", features = ["full"] }
 ts-rs = "6.1"
 
+# [dependencies.local_armsim]
+# path = "../src"
+
 [dependencies.tauri-plugin-log]
 git = "https://github.com/tauri-apps/tauri-plugin-log"
 features = ["colored"]
