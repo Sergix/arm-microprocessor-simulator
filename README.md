@@ -47,6 +47,8 @@ To run the tests, simply run `cargo test`.
 
 ## Configuration
 
+Currently, logging configuration is not supported. By default, the program logs output to both the shell and the WebView developer tools.
+
 ## User Guide
 
 ### Command-Line
@@ -62,6 +64,9 @@ To specify the amount of simulated RAM, simply pass in the `--mem <memory_size>`
 When launching the application from your desktop environment, the initial window has a button titled **Load ELF**. Once you click this button, it will open up a file selection dialog where you can select your ELF binary and it will automatically load into the window.
 
 ## Bug Report
+
+- Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
+- 
 
 ## [Project Journal](CHANGELOG.md)
 

@@ -7,7 +7,6 @@ import * as log from 'tauri-plugin-log-api'
 
 import styles from './App.module.css';
 import MemoryGrid from './MemoryGrid';
-import { style } from 'solid-js/web/types';
 
 const MEMORY_ROW_SIZE = 16;
 
@@ -26,6 +25,7 @@ const App: Component = () => {
 	const [memory, setMemory] = createSignal(new Array<Array<number>>())
 	const [checksum, setChecksum] = createSignal(0)
 	const [filename, setFilename] = createSignal("")
+	const [loaded, setLoaded] = createSignal(false)
 	
 	// split into row chunks
     const chunk = (payload_memory_array: Array<number>) => {
@@ -41,6 +41,8 @@ const App: Component = () => {
 	createEffect(() => {
 		listen('elf_load', ({ payload }: { payload: IMemoryPayload }) => {
 			log.trace("SolidJS[App]: loading ELF...")
+
+			setLoaded(payload.loaded)
 			setChecksum(payload.checksum)
 			setMemoryFromPayload(payload)
 		});
@@ -48,17 +50,29 @@ const App: Component = () => {
 		// TODO: get unlistener for unmount (if needed)
 		// https://github.com/FabianLars/mw-toolbox/blob/main/gui/src/pages/Upload/Upload.tsx#L70
 	})
+
+	createEffect(() => {
+		listen('invalid_elf', (payload) => {
+			log.trace("SolidJS[App]: invalid ELF, clearing UI")
+			alert("Invalid ELF file.")
+			setLoaded(false)
+		})
+	})
 	
 	// check if a binary has been loaded by command-line args
-	onMount(() => {
-		invoke('cmd_get_memory')
-		.then((payload: any) => {
+	onMount(async () => {
+		try {
+			const payload: IMemoryPayload = await invoke('cmd_get_memory')
+
 			log.trace("SolidJS[App.onMount]: loaded elf")
+			
+			setLoaded(payload.loaded)
+			setChecksum(payload.checksum)
+			setFilename(payload.filename)
 			setMemoryFromPayload(payload)
-		})
-		.catch((message: any) => {
+		} catch {
 			log.trace(`SolidJS[App.onMount]: no elf loaded`)
-		})
+		}
 	})
 	
 	onCleanup(() => {
@@ -66,12 +80,14 @@ const App: Component = () => {
 	})
 	
 	const handleLoad = async () => {
+		setLoaded(false);
+
 		const selected = await open({
 			title: "Select ELF binary"
 		})
 		setFilename(() => (selected?.toString() || ""))
 		
-		const res: string = await invoke('cmd_load_elf', { filename: selected });
+		await invoke('cmd_load_elf', { filename: selected });
 		log.trace("SolidJS[App.handleLoad]: Called loader");
 	};
 	
@@ -80,11 +96,11 @@ const App: Component = () => {
 			<header class={styles.header}>
 				<h1 class="logo">ARMSim</h1>
 			</header>
-			<p class={styles.filename}>{ filename() === "" ? "None." : filename }</p>
+			<p class={styles.filename}>{ loaded() ? filename : "None." }</p>
 			<button class={styles.file_loader_button} onClick={handleLoad}>
 				Load ELF
 			</button>
-			<Show when={checksum() != 0}>
+			<Show when={loaded()}>
 				<MemoryGrid checksum={checksum()} memory={memory()}/>
 			</Show>
 		</div>

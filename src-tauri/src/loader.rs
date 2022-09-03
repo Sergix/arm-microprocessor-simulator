@@ -35,16 +35,12 @@ pub async fn cmd_get_memory(memory_state: MemoryState<'_>, options_state: Option
 }
 
 #[tauri::command]
-pub async fn cmd_load_elf(filename: String, app_handle: AppHandle, memory_state: MemoryState<'_>) -> Result<(), ()> {
+pub async fn cmd_load_elf(filename: String, app_handle: AppHandle) -> Result<(), ()> {
     trace!("cmd_load_elf: attempting to load ELF binary: {}", filename);
+    
     // load elf file, await
     // automatically emits
     load_elf(filename.clone(), app_handle).await;
-
-    // verify checksums
-    let memory_lock = memory_state.lock().await;
-    let checksum = memory_lock.CalculateChecksum();
-    trace!("cmd_load_elf: checksum: {}", checksum);
 
     Ok(())
 }
@@ -53,9 +49,9 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     // get state from app handler
     // https://discord.com/channels/616186924390023171/1012276284430229576/1012403646295707738
     // https://github.com/tauri-apps/tauri/discussions/1336#discussioncomment-1936523
+    let error: String = "".into();
 
-    trace!("load_elf: opening {}...", filename);
-    
+    // get global app state
     let app_memory_state: MemoryState = app_handle.state();
     let mut memory_lock = app_memory_state.lock().await;
     let memory_size: usize = memory_lock.size;
@@ -67,13 +63,9 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     memory_lock.memory_array.clear();
     memory_lock.memory_array.resize(memory_size, 0);
 
-    // remove chars possibly passed by shell
-    // https://stackoverflow.com/a/49856591
-    let trimmed_filename = filename.trim_matches(&['"', '\'', ' '] as &[_]);
-
     // resolve path
     // https://crates.io/crates/normpath
-    let path = Path::new(trimmed_filename);
+    let path = Path::new(&filename);
     let path_absolute = match path.normalize() {
         Ok(p) => { p }
         Err(e) => {
@@ -83,13 +75,23 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     };
     
     // open and read file
+    trace!("load_elf: opening {}...", path_absolute.as_path().to_string_lossy());
+
     let bin_data_result = std::fs::read(path_absolute);
     match bin_data_result {
         Ok(bin_data) => {
-            let error: String = "".into();
 
             // load elf file
-            let elf_object = elf::FileHeader32::<Endianness>::parse(&*bin_data).unwrap();
+            let elf_object = match elf::FileHeader32::<Endianness>::parse(&*bin_data) {
+                Ok(header) => { header }
+                Err(_) => {
+                    error!("load_elf: invalid ELF header");
+                    memory_lock.loaded = false;
+                    app_handle.emit_all("invalid_elf", {}).unwrap();
+                    return ()
+                }
+            };
+
             let endianness = elf_object.endian().unwrap();
 
             // loop over number program header segments (e_phnum)
@@ -112,17 +114,18 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
             memory_lock.checksum = memory_lock.CalculateChecksum();
             memory_lock.endianness = endianness;
             memory_lock.loaded = true;
-
-            app_handle.emit_all("elf_load", memory::MemoryPayload {
-                checksum: memory_lock.checksum,
-                loaded: memory_lock.loaded,
-                memory_array: memory_lock.memory_array.clone(),
-                error: error.clone(),
-                filename: String::clone(&options_lock.elf_file)
-            }).unwrap();
         }
         Err(e) => {
             error!("load_elf: error loading ELF: {}", e);
+            memory_lock.loaded = false;
         }
     }
+
+    app_handle.emit_all("elf_load", memory::MemoryPayload {
+        checksum: memory_lock.checksum,
+        loaded: memory_lock.loaded,
+        memory_array: memory_lock.memory_array.clone(),
+        error: error.clone(),
+        filename: String::clone(&options_lock.elf_file)
+    }).unwrap();
 }
