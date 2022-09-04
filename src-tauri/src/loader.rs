@@ -79,8 +79,10 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     };
     
     // open and read file
+    // TODO: dont update global options; this is only here so that the frontend is properly updated from cmd_get_memory payload
     let path_str = path_absolute.as_path().to_string_lossy().to_string();
     options_lock.elf_file = String::clone(&path_str);
+
     trace!("load_elf: opening {}...", path_str);
     let bin_data_result = std::fs::read(path_absolute);
 
