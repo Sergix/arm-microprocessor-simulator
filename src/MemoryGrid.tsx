@@ -12,7 +12,6 @@ const MemoryGrid: Component<IMemoryGridProps> = (props: IMemoryGridProps) => {
         <table class={styles.MemoryGrid} onScroll={() => {}}>
             <caption>Checksum: <span style="font-family: monospace;">{props.checksum}</span></caption>
             
-            {/* https://stackoverflow.com/questions/70819075/solidjs-for-vs-index */}
             {props.memory.map((row, index) => {
                 return (
                     <tr>

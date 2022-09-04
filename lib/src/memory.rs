@@ -41,16 +41,14 @@ pub struct Memory {
     pub size: usize
 }
 
-impl Memory {
-    // TODO: big- and little- endian
-    // have flag in each method that is passed from global tauri state
-
-    #[allow(non_snake_case)]
-    pub fn ReadWord(&self, addr: AddressSize) -> Word {
-        // TODO: make sure doesnt read past end
+impl Memory {    
+    pub fn read_word(&self, addr: AddressSize) -> Word {
+        if (addr + 3) as usize > self.size {
+            panic!("Memory[read_word]: addr extends past memory size");
+        }
 
         if addr % 4 != 0 {
-            error!("Memory[ReadWord]: Word address not valid");
+            error!("Memory[read_word]: Word address not valid");
             return 0
         }
 
@@ -66,12 +64,14 @@ impl Memory {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn WriteWord(&mut self, addr: AddressSize, value: Word) {
-        // TODO: make sure doesnt write past end
+    
+    pub fn write_word(&mut self, addr: AddressSize, value: Word) {
+        if (addr + 3) as usize > self.size {
+            panic!("Memory[write_word]: addr extends past memory size");
+        }
 
         if addr % 4 != 0 {
-            error!("Memory[WriteWord]: Word address not valid");
+            error!("Memory[write_word]: Word address not valid");
             return
         }
 
@@ -93,12 +93,14 @@ impl Memory {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn ReadHalfWord(&self, addr: AddressSize) -> HalfWord {
-        // TODO: make sure doesnt read past end
+    
+    pub fn read_half_word(&self, addr: AddressSize) -> HalfWord {
+        if (addr + 1) as usize > self.size {
+            panic!("Memory[read_half_word]: addr extends past memory size");
+        }
 
         if addr % 2 != 0 {
-            error!("Memory[WriteWord]: Word address not valid");
+            error!("Memory[write_word]: Word address not valid");
             return 0
         }
 
@@ -112,12 +114,14 @@ impl Memory {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn WriteHalfWord(&mut self, addr: AddressSize, value: HalfWord) {
-        // TODO: make sure doesnt write past end
+    
+    pub fn write_half_word(&mut self, addr: AddressSize, value: HalfWord) {
+        if (addr + 1) as usize > self.size {
+            panic!("Memory[write_half_word]: addr extends past memory size");
+        }
 
         if addr % 2 != 0 {
-            error!("Memory[WriteWord]: Word address not valid");
+            error!("Memory[write_half_word]: Word address not valid");
             return
         }
 
@@ -138,48 +142,57 @@ impl Memory {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn ReadByte(&self, addr: AddressSize) -> Byte {
+    
+    pub fn read_byte(&self, addr: AddressSize) -> Byte {
+        if addr as usize > self.size {
+            panic!("Memory[read_byte]: addr extends past memory size");
+        }
+
         *self.memory_array.get(addr as usize).unwrap() as Byte
     }
 
-    #[allow(non_snake_case)]
-    pub fn WriteByte(&mut self, addr: AddressSize, value: Byte) {
+    
+    pub fn write_byte(&mut self, addr: AddressSize, value: Byte) {
+        if addr as usize > self.size {
+            error!("Memory[write_byte]: addr extends past memory size");
+            return
+        }
+
         self.memory_array[addr as usize] = value;
     }
 
-    #[allow(non_snake_case)]
-    pub fn CalculateChecksum(&self) -> Checksum {
+    
+    pub fn calculate_checksum(&self) -> Checksum {
         let mut checksum: u32 = 0;
     
         for address in 0..self.memory_array.len() {
-            checksum += self.ReadByte(address as AddressSize) as u32 ^ (address as u32);
+            checksum += self.read_byte(address as AddressSize) as u32 ^ (address as u32);
         }
     
         return checksum;
     }
 
-    #[allow(non_snake_case)]
-    pub fn TestFlag(&self, addr: AddressSize, bit: u8) -> bool {
+    
+    pub fn test_flag(&self, addr: AddressSize, bit: u8) -> bool {
         // bit is in the range of [0..31]
         if bit > 31 {
-            panic!("Memory[TestFlag]: bit is out of range")
+            panic!("Memory[test_flag]: bit is out of range")
         }
         
-        let w: Word = self.ReadWord(addr);
+        let w: Word = self.read_word(addr);
         trace!("{}", w);
 
         if (w >> bit) & 1 == 1 { true } else { false }
     }
 
-    #[allow(non_snake_case)]
-    pub fn SetFlag(&mut self, addr: AddressSize, bit: u8, flag: bool) {
+    
+    pub fn set_flag(&mut self, addr: AddressSize, bit: u8, flag: bool) {
         // bit is in the range of [0..31]
         if bit > 31 {
-            panic!("Memory[SetFlag]: bit is out of range")
+            panic!("Memory[set_flag]: bit is out of range")
         }
 
-        let mut w: Word = self.ReadWord(addr);
+        let mut w: Word = self.read_word(addr);
 
         if flag {
             // set bit
@@ -190,23 +203,23 @@ impl Memory {
             w &= !(1 << bit);
         }
 
-        self.WriteWord(addr, w);
+        self.write_word(addr, w);
     }
 
     // static utility
-    #[allow(non_snake_case)]
-    pub fn ExtractBits(w: Word, startBit: u8, endBit: u8) -> Word {
+    
+    pub fn extract_bits(w: Word, start_bit: u8, end_bit: u8) -> Word {
         // bit is in the range of [0..31]
-        if startBit > 31 || endBit > 31{
-            panic!("Memory[ExtractBits]: bit is out of range")
+        if start_bit > 31 || end_bit > 31{
+            panic!("Memory[extract_bits]: bit is out of range")
         }
 
-        if startBit > endBit {
-            panic!("Memory[ExtractBits]: startBit must be <= endBit");
+        if start_bit > end_bit {
+            panic!("Memory[extract_bits]: startBit must be <= endBit");
         }
 
         let mut mask: Word = 0;
-        for i in startBit..endBit {
+        for i in start_bit..end_bit {
             let bit: Word = 1 << i;
 
             mask |= bit;
@@ -231,9 +244,9 @@ impl Default for Memory {
 mod tests {
     use super::*;
 
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_ReadWord() {
+    fn test_read_word() {
         let mut mem = Memory::default();
 
         mem.memory_array[0] = 0x05;
@@ -241,30 +254,38 @@ mod tests {
         mem.memory_array[2] = 0x06;
         mem.memory_array[3] = 0xA0;
 
-        let be = mem.ReadWord(0);
+        let be = mem.read_word(0);
         assert_eq!(be, 0x05FF06A0);
         
         mem.endianness = Endianness::Little;
-        assert_eq!(mem.ReadWord(0), 0xA006FF05);
+        assert_eq!(mem.read_word(0), 0xA006FF05);
         
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_ReadWord_AlignmentError() {
+    fn test_read_word_alignment_error() {
         let mut mem = Memory::default();
 
         mem.memory_array[3] = 0xFF;
 
-        assert_eq!(mem.ReadWord(3), 0);
+        assert_eq!(mem.read_word(3), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_read_word_bounds_error() {
+        let mem = Memory::default();
+
+        mem.read_word(32768);
     }
     
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_WriteWord() {
+    fn test_write_word() {
         let mut mem = Memory::default();
 
-        mem.WriteWord(0, 0x05FF06A0);
+        mem.write_word(0, 0x05FF06A0);
         
         assert_eq!(mem.memory_array[0], 0x05);
         assert_eq!(mem.memory_array[1], 0xFF);
@@ -272,86 +293,142 @@ mod tests {
         assert_eq!(mem.memory_array[3], 0xA0);
 
         mem.endianness = Endianness::Little;
-        mem.WriteWord(0, 0x05FF06A0);
+        mem.write_word(0, 0x05FF06A0);
 
         assert_eq!(mem.memory_array[0], 0xA0);
         assert_eq!(mem.memory_array[1], 0x06);
         assert_eq!(mem.memory_array[2], 0xFF);
         assert_eq!(mem.memory_array[3], 0x05);
     }
-    
-    #[allow(non_snake_case)]
+
     #[test]
-    fn test_ReadHalfWord() {
+    fn test_write_word_alignment_error() {
+        let mut mem = Memory::default();
+
+        mem.write_word(3, 1);
+
+        assert_ne!(6, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_write_word_bounds_error() {
+        let mut mem = Memory::default();
+
+        mem.write_word(32768, 0);
+    }
+    
+    
+    #[test]
+    fn test_read_half_word() {
         let mut mem = Memory::default();
         
         mem.memory_array[0] = 0x05;
         mem.memory_array[1] = 0xFF;
         
-        assert_eq!(mem.ReadHalfWord(0), 0x05FF);
+        assert_eq!(mem.read_half_word(0), 0x05FF);
         
         mem.endianness = Endianness::Little;
-        assert_eq!(mem.ReadHalfWord(0), 0xFF05);
+        assert_eq!(mem.read_half_word(0), 0xFF05);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_ReadHalfWord_AlignmentError() {
+    fn test_read_half_word_alignment_error() {
         let mut mem = Memory::default();
 
         mem.memory_array[1] = 0xFF;
 
-        assert_eq!(mem.ReadHalfWord(1), 0);
+        assert_eq!(mem.read_half_word(1), 0);
     }
 
-    #[allow(non_snake_case)]
     #[test]
-    fn test_WriteHalfWord() {
+    #[should_panic]
+    fn test_read_half_word_bounds_error() {
+        let mem = Memory::default();
+
+        mem.read_half_word(32768);
+    }
+
+    
+    #[test]
+    fn test_write_half_word() {
         let mut mem = Memory::default();
 
-        mem.WriteHalfWord(0, 0x05FF);
+        mem.write_half_word(0, 0x05FF);
         
         assert_eq!(mem.memory_array[0], 0x05);
         assert_eq!(mem.memory_array[1], 0xFF);
 
         mem.endianness = Endianness::Little;
-        mem.WriteHalfWord(0, 0x05FF);
+        mem.write_half_word(0, 0x05FF);
 
         assert_eq!(mem.memory_array[0], 0xFF);
         assert_eq!(mem.memory_array[1], 0x05);
     }
 
-    #[allow(non_snake_case)]
     #[test]
-    fn test_ReadByte() {
+    fn test_write_half_word_alignment_error() {
+        let mut mem = Memory::default();
+
+        mem.write_half_word(3, 1);
+
+        assert_ne!(4, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_write_half_word_bounds_error() {
+        let mut mem = Memory::default();
+
+        mem.write_half_word(32768, 0);
+    }
+    
+    #[test]
+    fn test_read_byte() {
         let mut mem = Memory::default();
         
         mem.memory_array[0] = 0x05;
         
-        assert_eq!(mem.ReadByte(0), 0x05);
+        assert_eq!(mem.read_byte(0), 0x05);
         
         mem.endianness = Endianness::Little;
-        assert_eq!(mem.ReadByte(0), 0x05);
+        assert_eq!(mem.read_byte(0), 0x05);
     }
 
-    #[allow(non_snake_case)]
     #[test]
-    fn test_WriteByte() {
+    #[should_panic]
+    fn test_read_byte_bounds_error() {
+        let mem = Memory::default();
+
+        mem.read_byte(32768);
+    }
+
+    
+    #[test]
+    fn test_write_byte() {
         let mut mem = Memory::default();
         
-        mem.WriteByte(0, 0x05);
+        mem.write_byte(0, 0x05);
         
         assert_eq!(mem.memory_array[0], 0x05);
 
         mem.endianness = Endianness::Little;
-        mem.WriteByte(0, 0x05);
+        mem.write_byte(0, 0x05);
 
         assert_eq!(mem.memory_array[0], 0x05);
     }
 
-    #[allow(non_snake_case)]
     #[test]
-    fn test_CalculateChecksum() {
+    #[should_panic]
+    fn test_write_byte_bounds_error() {
+        let mut mem = Memory::default();
+
+        mem.write_half_word(32768, 0);
+    }
+    
+    #[test]
+    fn test_calculate_checksum() {
         let mut mem = Memory::default();
         
         mem.memory_array[0] = 0x01;
@@ -359,12 +436,12 @@ mod tests {
         mem.memory_array[2] = 0x03;
         mem.memory_array[3] = 0x84;
 
-        assert_eq!(mem.CalculateChecksum(), 536854790);
+        assert_eq!(mem.calculate_checksum(), 536854790);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_TestFlag() {
+    fn test_test_flag() {
         let mut mem = Memory::default();
 
         mem.memory_array[0] = 0x1C;
@@ -372,65 +449,65 @@ mod tests {
         mem.memory_array[2] = 0x1D;
         mem.memory_array[3] = 0x1A;
 
-        assert_eq!(mem.TestFlag(0, 11), true);
-        assert_eq!(mem.TestFlag(0, 13), false);
+        assert_eq!(mem.test_flag(0, 11), true);
+        assert_eq!(mem.test_flag(0, 13), false);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
     #[should_panic]
-    fn test_TestFlag_BitRangeError() {
+    fn test_test_flag_bit_range_error() {
         let mem = Memory::default();
 
-        mem.TestFlag(0, 32);
+        mem.test_flag(0, 32);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_SetFlag() {
+    fn test_set_flag() {
         let mut mem = Memory::default();
 
-        mem.SetFlag(0, 12, true);
+        mem.set_flag(0, 12, true);
         assert_eq!(mem.memory_array[2], 0x10);
 
-        mem.SetFlag(0, 12, false);
+        mem.set_flag(0, 12, false);
         assert_eq!(mem.memory_array[2], 0x00);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
     #[should_panic]
-    fn test_SetFlag_BitRangeError() {
+    fn test_set_flag_bit_range_error() {
         let mut mem = Memory::default();
 
-        mem.SetFlag(0, 32, true);
+        mem.set_flag(0, 32, true);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
-    fn test_ExtractBits() {
-        let w = Memory::ExtractBits(0xC7A2511E, 5, 20);
+    fn test_extract_bits() {
+        let w = Memory::extract_bits(0xC7A2511E, 5, 20);
         assert_eq!(w, 0x25100);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
     #[should_panic]
-    fn test_ExtractBits_InvalidStartBit() {
-        Memory::ExtractBits(0x0, 32, 0);
+    fn test_extract_bits_invalid_start_bit() {
+        Memory::extract_bits(0x0, 32, 0);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
     #[should_panic]
-    fn test_ExtractBits_InvalidEndBit() {
-        Memory::ExtractBits(0x0, 0, 32);
+    fn test_extract_bits_invalid_end_bit() {
+        Memory::extract_bits(0x0, 0, 32);
     }
 
-    #[allow(non_snake_case)]
+    
     #[test]
     #[should_panic]
-    fn test_ExtractBits_BitInequality() {
-        Memory::ExtractBits(0x0, 12, 10);
+    fn test_extract_bits_bit_inequality() {
+        Memory::extract_bits(0x0, 12, 10);
     }
 }

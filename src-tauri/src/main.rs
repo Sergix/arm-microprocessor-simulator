@@ -1,3 +1,8 @@
+/*
+    main.rs
+    Entry point for Tauri application
+*/
+
 // #![cfg_attr(
 //     all(not(debug_assertions), target_os = "windows"),
 //     windows_subsystem = "windows"
@@ -34,7 +39,7 @@ fn main() {
                     let handle = app.app_handle();
                     let opts: options_state::OptionsState = handle.state();
                     let mut opts_lock = opts.blocking_lock();
-                    opts_lock.Parse(matches);
+                    opts_lock.parse(matches);
                     drop(opts_lock);
 
                 }

@@ -111,13 +111,25 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 - Checksum validation for `test1.exe`, `test2.exe`, `test3.exe`
 
-### 9-3-22
+### 9-3-22 [7.25hrs]
 
 **Checkpoint Reached: Checkpoint 1: Loader**
 
 #### Progress
 
+- Refactored core logic into separate `cargo` workspace `/lib`
+- Added comprehensive unit testing for `Memory` class
+- Added project documentation to README.md
+- Debugged command line arguments in release binary
+- Fixed command line arguments not passing properly from different environments
+- Fixed file paths not resolving on Windows, added `normpath` crate for `path::normalize()`
+- Refactored frontend UI to have prop-passing for `MemoryGrid`
 
 #### Sources
 
+- [https://stackoverflow.com/a/49856591](Trimming strings for different characters)
+- [`normpath` crate](https://crates.io/crates/normpath)
+
 #### Tests Passed
+
+- All tests in `/lib/src/memory.rs`:`Memory`

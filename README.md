@@ -3,22 +3,22 @@
 **Name:** Peyton McGinnis
 **Course:** CpS 310
 **Submission date:** 3 September 2022
-**Hours spent:** 27
+**Hours spent:** 34.25
 
 ## Features
 
-- `--mem` and `<elf-file>` command line options are supported
-- Logging framework implemented using `tauri-plugin-log`
+- `--mem` and `<elf-file>` command line options are supported and validated
+- Logging framework implemented using `tauri-plugin-log`, however does not currently support enabling/disabling logs or writing logs to a file.
 - Scrollable memory grid
 - ELF file loader in GUI
 - Simulated RAM with checksums
-- Tests for core logic
+- Complete unit tests for Memory logic
 
 ## Prerequisites
 
 ### OS Platforms
 
-Windows 10, macOS, Debian, Arch, Fedora, openSUSE
+Windows 10/11, macOS, Debian, Arch, Fedora, openSUSE
 
 ### Software
 
@@ -39,15 +39,26 @@ Windows 10, macOS, Debian, Arch, Fedora, openSUSE
 
 ## Build and Tests
 
-First, clone this repository to your local machine. Then, run `yarn install` at the root level of the project directory to install the necessary `npm` packages. After that, run `cargo tauri build` to build the project. The project binary is exported to `/src-tauri/target/release` (or `/src-tauri/target/debug` if run with `cargo tauri build --debug`).
+### Building
+
+1. Install the necessary software noted above for your platform.
+2. `git clone https://github.com/bjucps310/cps310-simulator-Sergix`
+3. `yarn install` at the root level of the project directory to install the necessary `npm` packages.
+4. `cargo tauri build` to build the project.
+
+The target binary is exported to `/src-tauri/target/release` along with the platform-specific installer package files.
+
+### Development
 
 To run the built-in development environment with hot module reloading (HMR), run `cargo tauri dev`.
 
-To run the tests, simply run `cargo test`.
+### Testing
+
+To run the tests, run `cd lib` -> `cargo test`. Testing is only implemented for the core logic.
 
 ## Configuration
 
-Currently, logging configuration is not supported. By default, the program logs output to both the shell and the WebView developer tools.
+Currently, logging configuration and output to a file is not supported. By default, the program logs output to both the shell and the WebView developer tools.
 
 ## User Guide
 
@@ -66,7 +77,6 @@ When launching the application from your desktop environment, the initial window
 ## Bug Report
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
-- 
 
 ## [Project Journal](CHANGELOG.md)
 

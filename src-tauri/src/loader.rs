@@ -1,3 +1,8 @@
+/*
+    loader.rs
+    ELF loader that interacts with frontend
+*/
+
 use crate::memory_state::{ MemoryState };
 use crate::options_state::{ OptionsState };
 
@@ -46,12 +51,11 @@ pub async fn cmd_load_elf(filename: String, app_handle: AppHandle) -> Result<(),
 }
 
 pub async fn load_elf(filename: String, app_handle: AppHandle) {
-    // get state from app handler
+    let error: String = "".into();
+    
+    // get global state from app handler
     // https://discord.com/channels/616186924390023171/1012276284430229576/1012403646295707738
     // https://github.com/tauri-apps/tauri/discussions/1336#discussioncomment-1936523
-    let error: String = "".into();
-
-    // get global app state
     let app_memory_state: MemoryState = app_handle.state();
     let mut memory_lock = app_memory_state.lock().await;
     let memory_size: usize = memory_lock.size;
@@ -76,15 +80,15 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     
     // open and read file
     trace!("load_elf: opening {}...", path_absolute.as_path().to_string_lossy());
-
     let bin_data_result = std::fs::read(path_absolute);
+
     match bin_data_result {
         Ok(bin_data) => {
-
             // load elf file
             let elf_object = match elf::FileHeader32::<Endianness>::parse(&*bin_data) {
                 Ok(header) => { header }
                 Err(_) => {
+                    // TODO: two occurences of this, refactor to separate function
                     error!("load_elf: invalid ELF header");
                     memory_lock.loaded = false;
                     app_handle.emit_all("invalid_elf", {}).unwrap();
@@ -94,7 +98,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
 
             let endianness = elf_object.endian().unwrap();
 
-            // loop over number program header segments (e_phnum)
+            // loop over program header segments (e_phnum)
             for segment in elf_object.program_headers(endianness, &*bin_data).unwrap() {
                 // get size of segment (p_memsz)
                 let memsz = segment.p_memsz(endianness);
@@ -107,20 +111,25 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
                 // write segment data to memory starting at paddr
                 let segment_data = segment.data(endianness, &*bin_data).unwrap();
                 for i in 0..(memsz - 1) {
-                    memory_lock.WriteByte(paddr + i, segment_data[i as usize] as u8);
+                    memory_lock.write_byte(paddr + i, segment_data[i as usize] as u8);
                 }
             }
-        
-            memory_lock.checksum = memory_lock.CalculateChecksum();
+
+            // update state
+            memory_lock.checksum = memory_lock.calculate_checksum();
             memory_lock.endianness = endianness;
             memory_lock.loaded = true;
         }
         Err(e) => {
+            // TODO: two occurences of this, refactor to separate function
             error!("load_elf: error loading ELF: {}", e);
             memory_lock.loaded = false;
+            app_handle.emit_all("invalid_elf", {}).unwrap();
+            return ()
         }
     }
 
+    // notify the frontend when an ELF binary is successfully loaded
     app_handle.emit_all("elf_load", memory::MemoryPayload {
         checksum: memory_lock.checksum,
         loaded: memory_lock.loaded,

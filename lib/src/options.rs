@@ -8,8 +8,7 @@ pub struct Options {
 }
 
 impl Options {
-    #[allow(non_snake_case)]
-    pub fn Parse(&mut self, matches: Matches) {
+    pub fn parse(&mut self, matches: Matches) {
         // matches { args, subcommand }
         // args HashMap<String, ArgData>, ArgData { value, occurances }
         
@@ -23,12 +22,16 @@ impl Options {
 
                     match arg_value_normalized.parse::<usize>() {
                         Ok(u) => {
-                            // TODO: verify mem-size is <= 1MB
-                            trace!("Parse: mem {}", u);
+                            if u > 1024000 {
+                                error!("parse: --mem must be <= 1MB (1024000b)");
+                                std::process::exit(1)
+                            }
+
+                            trace!("parse: mem {}", u);
                             u as usize
                         }
                         Err(_) => {
-                            error!("Parse: --mem option value incompatible {}", arg.value);
+                            error!("parse: --mem option value incompatible {}", arg.value);
                             std::process::exit(1)
                         }
                     }
@@ -43,7 +46,7 @@ impl Options {
             Some(arg) => {
                 // skip over non-string values in case a falsy value is passed
                 if arg.occurrences == 0 {
-                    error!("Parse: <elf_file> missing");
+                    error!("parse: <elf_file> missing");
 
                     // don't automatically exit if debugging
                     if cfg!(debug_assertions) {
@@ -52,7 +55,7 @@ impl Options {
                         std::process::exit(1)
                     }
                 } else {
-                    trace!("Parse: elf_file {}", arg.value.to_string());
+                    trace!("parse: elf_file {}", arg.value.to_string());
 
                     // remove chars possibly passed by shell
                     // https://stackoverflow.com/a/49856591
@@ -60,7 +63,7 @@ impl Options {
                 }
             }
             None => {
-                error!("Parse: <elf_file> missing");
+                error!("parse: <elf_file> missing");
                 std::process::exit(1)
             }
         })
