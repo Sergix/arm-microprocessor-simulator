@@ -3,12 +3,12 @@
 **Name:** Peyton McGinnis
 **Course:** CpS 310
 **Submission date:** 3 September 2022
-**Hours spent:** 34.25
+**Hours spent:** 34.5
 
 ## Features
 
 - `--mem` and `<elf-file>` command line options are supported and validated
-- Logging framework implemented using `tauri-plugin-log`, however does not currently support enabling/disabling logs or writing logs to a file.
+- Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
 - Scrollable memory grid
 - ELF file loader in GUI
 - Simulated RAM with checksums
@@ -45,8 +45,9 @@ Windows 10/11, macOS, Debian, Arch, Fedora, openSUSE
 2. `git clone https://github.com/bjucps310/cps310-simulator-Sergix`
 3. `yarn install` at the root level of the project directory to install the necessary `npm` packages.
 4. `cargo tauri build` to build the project.
+    - To enable logging output to your shell when running the application, run `cargo tauri build --debug`.
 
-The target binary is exported to `/src-tauri/target/release` along with the platform-specific installer package files.
+The release target binary is exported to `/src-tauri/target/release` along with the platform-specific installer package files. The debug target binary is similarly in `/src-tauri/target/release`.
 
 ### Development
 
@@ -58,7 +59,14 @@ To run the tests, run `cd lib` -> `cargo test`. Testing is only implemented for 
 
 ## Configuration
 
-Currently, logging configuration and output to a file is not supported. By default, the program logs output to both the shell and the WebView developer tools.
+Currently, logging configuration is not supported.
+
+The Debug target binary (`--debug` mode) logs output to the shell, the WebView developer tools, and to a logfile. In normal release mode, the program only logs output to a logfile.
+
+[The default logfile destinations are the following](https://github.com/tauri-apps/tauri-plugin-log/blob/dev/src/lib.rs#L100):
+- Linux: `{configDir}/com.sergix.dev` (Example: `/home/alice/.config/com.sergix.dev`)
+- macOS: `{homeDir}/Library/Logs/com.sergix.dev` (Example: `/Users/Alice/Library/Logs/com.sergix.dev`)
+- Windows: `{configDir}/com.sergix.dev` (`C:\Users\Alice\AppData\Roaming\com.sergix.dev`)
 
 ## User Guide
 

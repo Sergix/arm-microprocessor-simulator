@@ -111,7 +111,7 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 - Checksum validation for `test1.exe`, `test2.exe`, `test3.exe`
 
-### 9-3-22 [7.25hrs]
+### 9-3-22 [7.5hrs]
 
 **Checkpoint Reached: Checkpoint 1: Loader**
 
@@ -129,6 +129,7 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 - [https://stackoverflow.com/a/49856591](Trimming strings for different characters)
 - [`normpath` crate](https://crates.io/crates/normpath)
+- [Tauri file logging](https://github.com/tauri-apps/tauri-plugin-log/blob/dev/src/lib.rs#L100)
 
 #### Tests Passed
 

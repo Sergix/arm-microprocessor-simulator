@@ -3,10 +3,10 @@
     Entry point for Tauri application
 */
 
-// #![cfg_attr(
-//     all(not(debug_assertions), target_os = "windows"),
-//     windows_subsystem = "windows"
-// )]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 mod loader;
 mod options_state;
