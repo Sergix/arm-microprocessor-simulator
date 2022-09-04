@@ -70,17 +70,12 @@ The Debug target binary (`--debug` mode) logs output to the shell, the WebView d
 
 ## User Guide
 
-### Command-Line
+`armsim.exe [--mem <memory-size>] <elf-file>`
 
-Command format: `armsim.exe [--mem <memory-size>] <elf-file>`
-
-To launch the application from the command-line, simply navigate to the directory containing the binary and run `armsim.exe elf_file.bin`. By default, this loads `elf_file.bin` into a 32K block of simulated RAM and opens a window on your desktop with a scrollable memory grid.
+To launch the application from the command-line, navigate to the directory containing the program executable and run `armsim.exe elf_file.bin`. By default, this loads `elf_file.bin` into a 32K block of simulated RAM and opens a window on your desktop with a scrollable memory grid. The initial window has a button titled **Load ELF**. Once you click this button, it will open up a file selection dialog where you can select your ELF binary and it will automatically load into the window.
 
 To specify the amount of simulated RAM, simply pass in the `--mem <memory_size>` option: `armsim.exe --mem 33768 elf_file.bin`
 
-### Launch
-
-When launching the application from your desktop environment, the initial window has a button titled **Load ELF**. Once you click this button, it will open up a file selection dialog where you can select your ELF binary and it will automatically load into the window.
 
 ## Bug Report
 

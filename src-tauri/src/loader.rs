@@ -61,7 +61,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     let memory_size: usize = memory_lock.size;
 
     let app_options_state: OptionsState = app_handle.state();
-    let options_lock = app_options_state.lock().await;
+    let mut options_lock = app_options_state.lock().await;
 
     // clear memory
     memory_lock.memory_array.clear();
@@ -79,7 +79,9 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     };
     
     // open and read file
-    trace!("load_elf: opening {}...", path_absolute.as_path().to_string_lossy());
+    let path_str = path_absolute.as_path().to_string_lossy().to_string();
+    options_lock.elf_file = String::clone(&path_str);
+    trace!("load_elf: opening {}...", path_str);
     let bin_data_result = std::fs::read(path_absolute);
 
     match bin_data_result {
@@ -99,14 +101,18 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
             let endianness = elf_object.endian().unwrap();
 
             // loop over program header segments (e_phnum)
+            trace!("load_elf: {} segments", elf_object.e_phnum(endianness));
             for segment in elf_object.program_headers(endianness, &*bin_data).unwrap() {
+                // header offsets
+                let offset = segment.p_offset(endianness);
+
                 // get size of segment (p_memsz)
                 let memsz = segment.p_memsz(endianness);
 
                 // load into specified address in RAM (p_paddr)
                 let paddr = segment.p_paddr(endianness);
 
-                trace!("load_elf: {}memsz {}paddr", memsz, paddr);
+                trace!("load_elf: segment {}memsz {}offset {}paddr", memsz, offset, paddr);
 
                 // write segment data to memory starting at paddr
                 let segment_data = segment.data(endianness, &*bin_data).unwrap();
@@ -135,6 +141,6 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         loaded: memory_lock.loaded,
         memory_array: memory_lock.memory_array.clone(),
         error: error.clone(),
-        filename: String::clone(&options_lock.elf_file)
+        filename: String::clone(&path_str)
     }).unwrap();
 }
