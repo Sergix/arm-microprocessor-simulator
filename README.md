@@ -1,9 +1,9 @@
 # README
 
-**Name:** Peyton McGinnis
-**Course:** CpS 310
-**Submission date:** 3 September 2022
-**Hours spent:** 34.5
+**Name:** Peyton McGinnis  
+**Course:** CpS 310  
+**Submission date:** 3 September 2022  
+**Hours spent:** 34.5  
 
 ## Features
 
