@@ -1,19 +1,8 @@
 .App {
   text-align: center;
-  background-color: #282c34;
   min-height: 100vh;
   color: white;
-
-}
-
-.header {
-  background-color:;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  @apply bg-gray-900;
 }
 
 .link {
@@ -26,35 +15,8 @@
   display: none;
 }
 
-input[type="text"] {
-  background-color: #282c34;
-  border-style: solid;
-  border-radius: 3px;
-  border-size: 1px;
-  color: white;
-  padding: 4px;
-  margin-right: 4px;
-}
-
 .file_loader_button {
-  background-color: #282c44;
-  color: white;
-  border-style: inset;
-  border-radius: 3px;
-  border-width: 1px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 7px;
-  padding-bottom: 8px;
-  transition: background-color 0.1s ease-out;
-}
-
-.file_loader_button:hover {
-  background-color: #282c74;
-}
-
-.file_loader_button:active {
-  background-color: #282c94;
+  @apply mx-4;
 }
 
 .filename {

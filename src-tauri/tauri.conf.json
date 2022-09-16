@@ -63,7 +63,8 @@
           "name": "elf-file",
           "description": "the name of a file in ELF format",
           "takesValue": true,
-          "index": 1
+          "index": 1,
+          "required": false
         }
       ]
     },
@@ -76,10 +77,10 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 800,
         "resizable": true,
         "title": "armsim",
-        "width": 800
+        "width": 1200
       }
     ]
   }

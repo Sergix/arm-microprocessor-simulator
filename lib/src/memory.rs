@@ -3,17 +3,21 @@ use log::error;
 use object::Endianness;
 
 pub type Byte = u8;
-type HalfWord = u16;
-type Word = u32;
-type AddressSize = u32;
-type Checksum = u32;
+pub type HalfWord = u16;
+pub type Word = u32;
+pub type AddressSize = u32;
+pub type Checksum = u32;
 
 pub const DEFAULT_MEMORY_SIZE: usize = 32768;
+
+pub const NUM_REGISTERS: usize = 17; // r0...r15, 16 is CPSR
+pub const REGISTER_BYTES: usize = 4; // 4byte = 32bit
+pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as AddressSize;
 
 // payload for tauri event emitter to send to frontend
 // https://tauri.app/v1/guides/features/events/#global-events-1
 #[derive(Clone, serde::Serialize)]
-pub struct MemoryPayload {
+pub struct RAMPayload {
     pub checksum: Checksum,
     pub loaded: bool,
     pub memory_array: Vec<Byte>,
@@ -21,9 +25,9 @@ pub struct MemoryPayload {
     pub filename: String
 }
 
-impl Default for MemoryPayload {
+impl Default for RAMPayload {
     fn default() -> Self {
-        MemoryPayload {
+        RAMPayload {
             checksum: 0,
             loaded: false,
             memory_array: vec![0, 0],
@@ -33,17 +37,46 @@ impl Default for MemoryPayload {
     }
 }
 
-pub struct Memory {
-    pub checksum: Checksum,
-    pub endianness: Endianness,
-    pub loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
-    pub memory_array: Vec<Byte>, // unsigned Byte array
-    pub size: usize
+#[derive(Clone, serde::Serialize)]
+pub struct RegistersPayload {
+    pub register_array: Vec<Word>
 }
 
-impl Memory {    
-    pub fn read_word(&self, addr: AddressSize) -> Word {
-        if (addr + 3) as usize > self.size {
+impl Default for RegistersPayload {
+    fn default() -> Self {
+        RegistersPayload {
+            register_array: vec![0, 0]
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct FlagsPayload {
+    pub n: bool,
+    pub c: bool,
+    pub z: bool,
+    pub v: bool
+}
+
+impl Default for FlagsPayload {
+    fn default() -> Self {
+        FlagsPayload {
+            n: false,
+            c: false,
+            z: false,
+            v: false,
+        }
+    }
+}
+
+pub trait Memory {
+    fn new(size: usize, endianness: Endianness) -> Self;
+    fn get_size(&self) -> usize;
+    fn get_memory_array(&mut self) -> &mut Vec<Byte>;
+    fn get_endianness(&self) -> Endianness;
+
+    fn read_word(&mut self, addr: AddressSize) -> Word {
+        if (addr + 3) as usize > self.get_size() {
             panic!("Memory[read_word]: addr extends past memory size");
         }
 
@@ -52,12 +85,12 @@ impl Memory {
             return 0
         }
 
-        let w0: Word = *self.memory_array.get(addr as usize).unwrap() as Word;
-        let w1: Word = *self.memory_array.get((addr + 1) as usize).unwrap() as Word;
-        let w2: Word = *self.memory_array.get((addr + 2) as usize).unwrap() as Word;
-        let w3: Word = *self.memory_array.get((addr + 3) as usize).unwrap() as Word;
+        let w0: Word = *self.get_memory_array().get(addr as usize).unwrap() as Word;
+        let w1: Word = *self.get_memory_array().get((addr + 1) as usize).unwrap() as Word;
+        let w2: Word = *self.get_memory_array().get((addr + 2) as usize).unwrap() as Word;
+        let w3: Word = *self.get_memory_array().get((addr + 3) as usize).unwrap() as Word;
 
-        if self.endianness == Endianness::Little {
+        if self.get_endianness() == Endianness::Little {
             (w3 << 24) | (w2 << 16) | (w1 << 8) | w0
         } else {
             (w0 << 24) | (w1 << 16) | (w2 << 8) | w3
@@ -65,8 +98,8 @@ impl Memory {
     }
 
     
-    pub fn write_word(&mut self, addr: AddressSize, value: Word) {
-        if (addr + 3) as usize > self.size {
+    fn write_word(&mut self, addr: AddressSize, value: Word) {
+        if (addr + 3) as usize > self.get_size() {
             panic!("Memory[write_word]: addr extends past memory size");
         }
 
@@ -80,22 +113,22 @@ impl Memory {
         let b2: Byte = ((value >> 8) & 0xff) as Byte;
         let b3: Byte = (value & 0xff) as Byte;
 
-        if self.endianness == Endianness::Little {
-            self.memory_array[addr as usize] = b3;
-            self.memory_array[(addr + 1) as usize] = b2;
-            self.memory_array[(addr + 2) as usize] = b1;
-            self.memory_array[(addr + 3) as usize] = b0;
+        if self.get_endianness() == Endianness::Little {
+            self.get_memory_array()[addr as usize] = b3;
+            self.get_memory_array()[(addr + 1) as usize] = b2;
+            self.get_memory_array()[(addr + 2) as usize] = b1;
+            self.get_memory_array()[(addr + 3) as usize] = b0;
         } else {
-            self.memory_array[addr as usize] = b0;
-            self.memory_array[(addr + 1) as usize] = b1;
-            self.memory_array[(addr + 2) as usize] = b2;
-            self.memory_array[(addr + 3) as usize] = b3;
+            self.get_memory_array()[addr as usize] = b0;
+            self.get_memory_array()[(addr + 1) as usize] = b1;
+            self.get_memory_array()[(addr + 2) as usize] = b2;
+            self.get_memory_array()[(addr + 3) as usize] = b3;
         }
     }
 
     
-    pub fn read_half_word(&self, addr: AddressSize) -> HalfWord {
-        if (addr + 1) as usize > self.size {
+    fn read_half_word(&mut self, addr: AddressSize) -> HalfWord {
+        if (addr + 1) as usize > self.get_size() {
             panic!("Memory[read_half_word]: addr extends past memory size");
         }
 
@@ -104,10 +137,10 @@ impl Memory {
             return 0
         }
 
-        let hw0: HalfWord = *self.memory_array.get(addr as usize).unwrap() as HalfWord;
-        let hw1: HalfWord = *self.memory_array.get((addr + 1) as usize).unwrap() as HalfWord;
+        let hw0: HalfWord = *self.get_memory_array().get(addr as usize).unwrap() as HalfWord;
+        let hw1: HalfWord = *self.get_memory_array().get((addr + 1) as usize).unwrap() as HalfWord;
 
-        if self.endianness == Endianness::Little {
+        if self.get_endianness() == Endianness::Little {
             (hw1 << 8) | hw0
         } else {
             (hw0 << 8) | hw1
@@ -115,8 +148,8 @@ impl Memory {
     }
 
     
-    pub fn write_half_word(&mut self, addr: AddressSize, value: HalfWord) {
-        if (addr + 1) as usize > self.size {
+    fn write_half_word(&mut self, addr: AddressSize, value: HalfWord) {
+        if (addr + 1) as usize > self.get_size() {
             panic!("Memory[write_half_word]: addr extends past memory size");
         }
 
@@ -133,39 +166,39 @@ impl Memory {
         
         // big endian: b0 b1
         // little endian: b1 b0
-        if self.endianness == Endianness::Little {
-            self.memory_array[addr as usize] = b1;
-            self.memory_array[(addr + 1) as usize] = b0;
+        if self.get_endianness() == Endianness::Little {
+            self.get_memory_array()[addr as usize] = b1;
+            self.get_memory_array()[(addr + 1) as usize] = b0;
         } else {
-            self.memory_array[addr as usize] = b0;
-            self.memory_array[(addr + 1) as usize] = b1;
+            self.get_memory_array()[addr as usize] = b0;
+            self.get_memory_array()[(addr + 1) as usize] = b1;
         }
     }
 
     
-    pub fn read_byte(&self, addr: AddressSize) -> Byte {
-        if addr as usize > self.size {
+    fn read_byte(&mut self, addr: AddressSize) -> Byte {
+        if addr as usize > self.get_size() {
             panic!("Memory[read_byte]: addr extends past memory size");
         }
 
-        *self.memory_array.get(addr as usize).unwrap() as Byte
+        *self.get_memory_array().get(addr as usize).unwrap() as Byte
     }
 
     
-    pub fn write_byte(&mut self, addr: AddressSize, value: Byte) {
-        if addr as usize > self.size {
+    fn write_byte(&mut self, addr: AddressSize, value: Byte) {
+        if addr as usize > self.get_size() {
             error!("Memory[write_byte]: addr extends past memory size");
             return
         }
 
-        self.memory_array[addr as usize] = value;
+        self.get_memory_array()[addr as usize] = value;
     }
 
     
-    pub fn calculate_checksum(&self) -> Checksum {
+    fn calculate_checksum(&mut self) -> Checksum {
         let mut checksum: u32 = 0;
     
-        for address in 0..self.memory_array.len() {
+        for address in 0..self.get_memory_array().len() {
             checksum += self.read_byte(address as AddressSize) as u32 ^ (address as u32);
         }
     
@@ -173,20 +206,18 @@ impl Memory {
     }
 
     
-    pub fn test_flag(&self, addr: AddressSize, bit: u8) -> bool {
+    fn test_flag(&mut self, addr: AddressSize, bit: u8) -> bool {
         // bit is in the range of [0..31]
         if bit > 31 {
             panic!("Memory[test_flag]: bit is out of range")
         }
         
         let w: Word = self.read_word(addr);
-        trace!("{}", w);
-
         if (w >> bit) & 1 == 1 { true } else { false }
     }
 
     
-    pub fn set_flag(&mut self, addr: AddressSize, bit: u8, flag: bool) {
+    fn set_flag(&mut self, addr: AddressSize, bit: u8, flag: bool) {
         // bit is in the range of [0..31]
         if bit > 31 {
             panic!("Memory[set_flag]: bit is out of range")
@@ -207,8 +238,7 @@ impl Memory {
     }
 
     // static utility
-    
-    pub fn extract_bits(w: Word, start_bit: u8, end_bit: u8) -> Word {
+    fn extract_bits(w: Word, start_bit: u8, end_bit: u8) -> Word {
         // bit is in the range of [0..31]
         if start_bit > 31 || end_bit > 31{
             panic!("Memory[extract_bits]: bit is out of range")
@@ -228,9 +258,125 @@ impl Memory {
     }
 }
 
-impl Default for Memory {
+pub struct Registers {
+    pub endianness: Endianness,
+    pub memory_array: Vec<Byte>, // unsigned Byte array
+    pub size: usize
+}
+
+impl Registers {
+    // get a specified register as a word based on r#
+    pub fn get_as_word(&mut self, index: usize) -> Word {
+        if index > 15 {
+            panic!("Registers[get_as_word]: register index out of range");
+        }
+
+        self.read_word((index * 4) as AddressSize)
+    }
+
+    // CPSR register is last register
+    // TODO: test by setting a flag and manually reading
+    pub fn get_cpsr(&mut self) -> Word {
+        // have to manually read location since CPSR is not little- or big-endian
+        self.read_word(CPSR_ADDR)
+    }
+
+    pub fn set_cpsr_flag(&mut self, bit: u8, flag: bool) {
+        self.set_flag(CPSR_ADDR, bit, flag)
+    }
+
+    pub fn get_cpsr_flag(&mut self, bit: u8) -> bool {
+        self.test_flag(CPSR_ADDR, bit)
+    }
+
+    pub fn get_n_flag(&mut self) -> bool {
+        self.test_flag(CPSR_ADDR, 31)
+    }
+
+    pub fn get_z_flag(&mut self) -> bool {
+        self.test_flag(CPSR_ADDR, 30)
+    }
+
+    pub fn get_c_flag(&mut self) -> bool {
+        self.test_flag(CPSR_ADDR, 29)
+    }
+
+    pub fn get_v_flag(&mut self) -> bool {
+        self.test_flag(CPSR_ADDR, 28)
+    }
+
+    pub fn get_cpsr_control_byte(&mut self) -> Byte {
+        self.read_byte(CPSR_ADDR + 3)
+    }
+}
+
+impl Memory for Registers {
+    fn new(size: usize, endianness: Endianness) -> Self {
+        Self {
+            endianness,
+            memory_array: vec![0; size],
+            size: size
+        }
+    }
+
+    fn get_size(&self) -> usize {
+        self.size
+    }
+
+    fn get_memory_array(&mut self) -> &mut Vec<Byte> {
+        &mut self.memory_array
+    }
+
+    fn get_endianness(&self) -> Endianness {
+        self.endianness
+    }
+}
+
+impl Default for Registers {
     fn default() -> Self {
-        Memory {
+        Registers {
+            endianness: Endianness::Little,
+            memory_array: vec![0; NUM_REGISTERS * REGISTER_BYTES],
+            size: NUM_REGISTERS * REGISTER_BYTES
+        }
+    }
+}
+
+pub struct RAM {
+    pub checksum: Checksum,
+    pub endianness: Endianness,
+    pub loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
+    pub memory_array: Vec<Byte>, // unsigned Byte array
+    pub size: usize
+}
+
+impl Memory for RAM {
+    fn new(size: usize, endianness: Endianness) -> Self {
+        Self {
+            checksum: 0,
+            endianness,
+            loaded: false,
+            memory_array: vec![0; size],
+            size
+        }
+    }
+
+    fn get_size(&self) -> usize {
+        self.size
+    }
+
+    fn get_memory_array(&mut self) -> &mut Vec<Byte> {
+        &mut self.memory_array
+    }
+
+    fn get_endianness(&self) -> Endianness {
+        self.endianness
+    }
+}
+
+impl Default for RAM {
+    fn default() -> Self {
+        RAM {
             checksum: 0,
             endianness: Endianness::Big,
             loaded: false,
@@ -247,7 +393,7 @@ mod tests {
     
     #[test]
     fn test_read_word() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.memory_array[0] = 0x05;
         mem.memory_array[1] = 0xFF;
@@ -265,7 +411,7 @@ mod tests {
     
     #[test]
     fn test_read_word_alignment_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.memory_array[3] = 0xFF;
 
@@ -275,7 +421,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_read_word_bounds_error() {
-        let mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.read_word(32768);
     }
@@ -283,7 +429,7 @@ mod tests {
     
     #[test]
     fn test_write_word() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_word(0, 0x05FF06A0);
         
@@ -303,7 +449,7 @@ mod tests {
 
     #[test]
     fn test_write_word_alignment_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_word(3, 1);
 
@@ -313,7 +459,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_write_word_bounds_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_word(32768, 0);
     }
@@ -321,7 +467,7 @@ mod tests {
     
     #[test]
     fn test_read_half_word() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
         
         mem.memory_array[0] = 0x05;
         mem.memory_array[1] = 0xFF;
@@ -335,7 +481,7 @@ mod tests {
     
     #[test]
     fn test_read_half_word_alignment_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.memory_array[1] = 0xFF;
 
@@ -345,7 +491,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_read_half_word_bounds_error() {
-        let mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.read_half_word(32768);
     }
@@ -353,7 +499,7 @@ mod tests {
     
     #[test]
     fn test_write_half_word() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_half_word(0, 0x05FF);
         
@@ -369,7 +515,7 @@ mod tests {
 
     #[test]
     fn test_write_half_word_alignment_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_half_word(3, 1);
 
@@ -379,14 +525,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_write_half_word_bounds_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_half_word(32768, 0);
     }
     
     #[test]
     fn test_read_byte() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
         
         mem.memory_array[0] = 0x05;
         
@@ -399,7 +545,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_read_byte_bounds_error() {
-        let mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.read_byte(32768);
     }
@@ -407,7 +553,7 @@ mod tests {
     
     #[test]
     fn test_write_byte() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
         
         mem.write_byte(0, 0x05);
         
@@ -422,14 +568,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_write_byte_bounds_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.write_half_word(32768, 0);
     }
     
     #[test]
     fn test_calculate_checksum() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
         
         mem.memory_array[0] = 0x01;
         mem.memory_array[1] = 0x82;
@@ -442,7 +588,7 @@ mod tests {
     
     #[test]
     fn test_test_flag() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.memory_array[0] = 0x1C;
         mem.memory_array[1] = 0xCB;
@@ -457,7 +603,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_test_flag_bit_range_error() {
-        let mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.test_flag(0, 32);
     }
@@ -465,7 +611,7 @@ mod tests {
     
     #[test]
     fn test_set_flag() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.set_flag(0, 12, true);
         assert_eq!(mem.memory_array[2], 0x10);
@@ -478,7 +624,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_set_flag_bit_range_error() {
-        let mut mem = Memory::default();
+        let mut mem = RAM::default();
 
         mem.set_flag(0, 32, true);
     }
@@ -486,7 +632,7 @@ mod tests {
     
     #[test]
     fn test_extract_bits() {
-        let w = Memory::extract_bits(0xC7A2511E, 5, 20);
+        let w = RAM::extract_bits(0xC7A2511E, 5, 20);
         assert_eq!(w, 0x25100);
     }
 
@@ -494,20 +640,41 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_extract_bits_invalid_start_bit() {
-        Memory::extract_bits(0x0, 32, 0);
+        RAM::extract_bits(0x0, 32, 0);
     }
 
     
     #[test]
     #[should_panic]
     fn test_extract_bits_invalid_end_bit() {
-        Memory::extract_bits(0x0, 0, 32);
+        RAM::extract_bits(0x0, 0, 32);
     }
 
     
     #[test]
     #[should_panic]
     fn test_extract_bits_bit_inequality() {
-        Memory::extract_bits(0x0, 12, 10);
+        RAM::extract_bits(0x0, 12, 10);
+    }
+
+    #[test]
+    fn test_get_as_word() {
+        let mut regs = Registers::default();
+
+        // little-endian
+        regs.memory_array[4] = 0x45;
+        regs.memory_array[5] = 0x55;
+        regs.memory_array[6] = 0xAE;
+        regs.memory_array[7] = 0xFF;
+
+        assert_eq!(0xFFAE5545, regs.get_as_word(1));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_get_as_word_range_error() {
+        let mut regs = Registers::default();
+
+        regs.get_as_word(16);
     }
 }

@@ -5,46 +5,31 @@ import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/dialog'
 import * as log from 'tauri-plugin-log-api'
 
+import {setMemory, setChecksum} from './state'
+
 import styles from './App.module.css';
 import MemoryGrid from './MemoryGrid';
-
-const MEMORY_ROW_SIZE = 16;
-
-// from backend memory.rs
-interface IMemoryPayload {
-	checksum: number
-	loaded: boolean
-	memory_array: Array<number>
-	error: string
-	filename: string
-}
+import RegisterPanel from './RegisterPanel';
+import StackPanel from './StackPanel';
+import TerminalPanel from './TerminalPanel';
+import DisassemblyPanel from './DisassemblyPanel';
+import FlagsPanel from './FlagsPanel';
 
 const App: Component = () => {
 	log.attachConsole();
-	
-	const [memory, setMemory] = createSignal(new Array<Array<number>>())
-	const [checksum, setChecksum] = createSignal(0)
+
 	const [filename, setFilename] = createSignal("")
 	const [loaded, setLoaded] = createSignal(false)
 	
-	// split into row chunks
-    const chunk = (payload_memory_array: Array<number>) => {
-        let memory_array = new Array<Array<number>>();
-        while (payload_memory_array.length > 0)
-            memory_array.push(payload_memory_array.splice(0, MEMORY_ROW_SIZE))
-
-        return memory_array
-    }
-
-	const setMemoryFromPayload = (payload: IMemoryPayload) => setMemory(chunk(payload.memory_array))
-	
 	createEffect(() => {
-		listen('elf_load', ({ payload }: { payload: IMemoryPayload }) => {
+		listen('elf_load', ({ payload }: { payload: IRAMPayload }) => {
 			log.trace("SolidJS[App]: loading ELF...")
 
 			setLoaded(payload.loaded)
 			setChecksum(payload.checksum)
-			setMemoryFromPayload(payload)
+			setMemory(payload.memory_array)
+
+			log.trace("SolidJS[App]: loaded ELF")
 		});
 		
 		// TODO: get unlistener for unmount (if needed)
@@ -62,14 +47,14 @@ const App: Component = () => {
 	// check if a binary has been loaded by command-line args
 	onMount(async () => {
 		try {
-			const payload: IMemoryPayload = await invoke('cmd_get_memory')
+			const payload: IRAMPayload = await invoke('cmd_get_memory')
 
-			log.trace("SolidJS[App.onMount]: loaded elf")
-			
 			setLoaded(payload.loaded)
 			setChecksum(payload.checksum)
 			setFilename(payload.filename)
-			setMemoryFromPayload(payload)
+			setMemory(payload.memory_array)
+
+			log.trace("SolidJS[App.onMount]: loaded elf")
 		} catch {
 			log.trace(`SolidJS[App.onMount]: no elf loaded`)
 		}
@@ -83,25 +68,55 @@ const App: Component = () => {
 		setLoaded(false);
 
 		const selected = await open({
-			title: "Select ELF binary"
+			title: "Select ELF binary",
+			filters: [
+				{
+					extensions: ['exe'],
+					name: ".exe"
+				},
+				{
+					extensions: ['*'],
+					name: "All files"
+				}
+			]
 		})
 		setFilename(() => (selected?.toString() || ""))
 		
+		log.trace("SolidJS[App.handleLoad]: calling elf loader");
 		await invoke('cmd_load_elf', { filename: selected });
-		log.trace("SolidJS[App.handleLoad]: Called loader");
 	};
 	
 	return (
 		<div class={styles.App}>
-			<header class={styles.header}>
-				<h1 class="logo">ARMSim</h1>
+			<header class="flex flex-row items-center px-4 py-1 bg-gray-800">
+				<p class="font-bold">ARMSim</p>
+				<button class={styles.file_loader_button} onClick={handleLoad}>
+					Load ELF
+				</button>
+				<p class="font-mono text-left text-sm">{ loaded() ? filename : "None." }</p>
 			</header>
-			<p class={styles.filename}>{ loaded() ? filename : "None." }</p>
-			<button class={styles.file_loader_button} onClick={handleLoad}>
-				Load ELF
-			</button>
 			<Show when={loaded()}>
-				<MemoryGrid checksum={checksum()} memory={memory()}/>
+				<header class="w-screen p-2 bg-gray-700 flex flex-row simulator_controls rounded-b-md">
+					<button class="px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500">Run</button>
+					<button class="px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500">Step</button>
+					<button class="px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500">Stop</button>
+					<button class="px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500">Add Breakpoint</button>
+					<button class="px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500">Reset</button>
+				</header>
+				<div class="flex flex-row">
+					<div class="flex flex-col">
+						<MemoryGrid/>
+						<TerminalPanel/>
+						<DisassemblyPanel/>
+					</div>
+					<div class="flex flex-col">
+						<RegisterPanel/>
+						<StackPanel/>
+					</div>
+					<div class="flex flex-col">
+						<FlagsPanel />
+					</div>
+				</div>
 			</Show>
 		</div>
 		);

@@ -11,6 +11,8 @@
 mod loader;
 mod options_state;
 mod memory_state;
+mod registers;
+mod flags;
 
 use lib::memory;
 use lib::options;
@@ -29,7 +31,8 @@ fn main() {
         .setup(|app| {
             
             // setup state used by app handler here since Builder::setup runs before calls to Builder::manage
-            app.manage(Mutex::new(memory::Memory::default()));
+            app.manage(Mutex::new(memory::Registers::default()));
+            app.manage(Mutex::new(memory::RAM::default()));
             app.manage(Mutex::new(options::Options::default()));
 
             match app.get_cli_matches() {
@@ -53,7 +56,7 @@ fn main() {
             let opts: options_state::OptionsState = handle.state();
             let opts_lock = opts.blocking_lock();
 
-            let memory: memory_state::MemoryState = handle.state();
+            let memory: memory_state::RAMState = handle.state();
             let mut memory_lock = memory.blocking_lock();
             
             // create RAM using memsize
@@ -78,12 +81,13 @@ fn main() {
                 });
             }
             
-            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             loader::cmd_load_elf,
-            loader::cmd_get_memory
+            loader::cmd_get_memory,
+            registers::cmd_get_registers,
+            flags::cmd_get_flags
         ])
         .plugin(
             LoggerBuilder::new()

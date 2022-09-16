@@ -11,6 +11,16 @@ impl Options {
     pub fn parse(&mut self, matches: Matches) {
         // matches { args, subcommand }
         // args HashMap<String, ArgData>, ArgData { value, occurances }
+
+        match matches.args.get("help") {
+            Some(arg) => {
+                println!("{}", arg.value.to_string());
+                std::process::exit(0)
+            }
+            None => {
+                
+            }
+        }
         
         self.memory_size = match matches.args.get("mem") {
             Some(arg) => {
@@ -46,14 +56,7 @@ impl Options {
             Some(arg) => {
                 // skip over non-string values in case a falsy value is passed
                 if arg.occurrences == 0 {
-                    error!("parse: <elf_file> missing");
-
-                    // don't automatically exit if debugging
-                    if cfg!(debug_assertions) {
-                        String::from("")
-                    } else {
-                        std::process::exit(1)
-                    }
+                    String::new()
                 } else {
                     trace!("parse: elf_file {}", arg.value.to_string());
 
@@ -66,7 +69,7 @@ impl Options {
                 error!("parse: <elf_file> missing");
                 std::process::exit(1)
             }
-        })
+        });
     }
 }
 
