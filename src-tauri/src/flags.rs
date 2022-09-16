@@ -1,5 +1,5 @@
 use lib::memory::FlagsPayload;
-use crate::memory_state::RegistersState;
+use lib::state::RegistersState;
 use log::trace;
 
 #[tauri::command]

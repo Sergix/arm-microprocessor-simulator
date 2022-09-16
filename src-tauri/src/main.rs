@@ -9,13 +9,14 @@
 )]
 
 mod loader;
-mod options_state;
-mod memory_state;
 mod registers;
 mod flags;
+mod interface;
 
 use lib::memory;
 use lib::options;
+use lib::state::OptionsState;
+use lib::state::RAMState;
 use log::trace;
 use tauri::{async_runtime::{Mutex, spawn}, Manager};
 use tauri_plugin_log::{fern::colors::ColoredLevelConfig, LogTarget, LoggerBuilder};
@@ -40,7 +41,7 @@ fn main() {
                     trace!("{:?}", matches);
 
                     let handle = app.app_handle();
-                    let opts: options_state::OptionsState = handle.state();
+                    let opts: OptionsState = handle.state();
                     let mut opts_lock = opts.blocking_lock();
                     opts_lock.parse(matches);
                     drop(opts_lock);
@@ -53,10 +54,10 @@ fn main() {
             
             let handle = app.app_handle();
             
-            let opts: options_state::OptionsState = handle.state();
+            let opts: OptionsState = handle.state();
             let opts_lock = opts.blocking_lock();
 
-            let memory: memory_state::RAMState = handle.state();
+            let memory: RAMState = handle.state();
             let mut memory_lock = memory.blocking_lock();
             
             // create RAM using memsize
@@ -84,10 +85,13 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            loader::cmd_get_elf,
             loader::cmd_load_elf,
-            loader::cmd_get_memory,
             registers::cmd_get_registers,
-            flags::cmd_get_flags
+            flags::cmd_get_flags,
+            interface::cmd_run,
+            interface::cmd_step,
+            interface::cmd_add_breakpoint
         ])
         .plugin(
             LoggerBuilder::new()

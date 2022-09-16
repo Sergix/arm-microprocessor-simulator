@@ -3,9 +3,7 @@
     ELF loader that interacts with frontend
 */
 
-use crate::memory_state::{ RAMState, RegistersState };
-use crate::options_state::{ OptionsState };
-
+use lib::state::{ RAMState, RegistersState, OptionsState };
 use lib::memory::{self, Memory};
 use log::trace;
 use log::error;
@@ -18,7 +16,7 @@ use std::path:: Path;
 use tauri::{AppHandle, Manager};
 
 #[tauri::command]
-pub async fn cmd_get_memory(memory_state: RAMState<'_>, options_state: OptionsState<'_>) -> Result<memory::RAMPayload, memory::RAMPayload> {
+pub async fn cmd_get_elf(memory_state: RAMState<'_>, options_state: OptionsState<'_>) -> Result<memory::ELFPayload, memory::ELFPayload> {
     trace!("cmd_get_memory: checking if ELF has been loaded...");
     
     let memory_lock = memory_state.lock().await;
@@ -26,7 +24,7 @@ pub async fn cmd_get_memory(memory_state: RAMState<'_>, options_state: OptionsSt
     
     if memory_lock.loaded {
         trace!("cmd_get_memory: ELF has already been loaded. Passing to frontend...");
-        return Ok(memory::RAMPayload {
+        return Ok(memory::ELFPayload {
             checksum: memory_lock.checksum,
             loaded: true,
             memory_array: memory_lock.memory_array.clone(),
@@ -35,7 +33,7 @@ pub async fn cmd_get_memory(memory_state: RAMState<'_>, options_state: OptionsSt
         })
     } else {
         trace!("cmd_get_memory: ELF has not been loaded.");
-        return Err(memory::RAMPayload::default())
+        return Err(memory::ELFPayload::default())
     }
 }
 
@@ -102,7 +100,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
 
             // get the entry point and load it into r15 (program counter)
             let e_entry = elf_object.e_entry.get(endianness);
-            registers_lock.set_program_counter(e_entry);
+            registers_lock.set_pc(e_entry);
             trace!("load_elf: {}e_entry", e_entry);
 
             // loop over program header segments (e_phnum)
@@ -145,7 +143,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     }).unwrap();
 
     // notify the frontend when an ELF binary is successfully loaded
-    app_handle.emit_all("elf_load", memory::RAMPayload {
+    app_handle.emit_all("elf_load", memory::ELFPayload {
         checksum: memory_lock.checksum,
         loaded: memory_lock.loaded,
         memory_array: memory_lock.memory_array.clone(),

@@ -68,14 +68,16 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     return (
         <section class="h-96 overflow-hidden">
             <h3>Memory</h3>
-            <p class="font-mono text-sm">Checksum: {checksum()}</p>
-            <div class="flex align-middle justify-start my-2">
-                <input onInput={(e) => setInputStartingAddress(parseInt(e.currentTarget.value))} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
-                <button class="text-sm ml-2" onClick={(_) => {
-                    setStartingAddress(inputStartingAddress())
-                    setChunkedMemory(chunk(memory(), startingAddress()))
-                    scrollToStartingAddress()
-                }}>GO</button>
+            <div class="flex flex-row align-middle my-2">
+                <p class="font-mono text-sm my-auto">Checksum: {checksum()}</p>
+                <div class="flex align-middle justify-start ml-4">
+                    <input onInput={(e) => setInputStartingAddress(parseInt(e.currentTarget.value))} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
+                    <button class="text-sm ml-2" onClick={(_) => {
+                        setStartingAddress(inputStartingAddress())
+                        setChunkedMemory(chunk(memory(), startingAddress()))
+                        scrollToStartingAddress()
+                    }}>GO</button>
+                </div>
             </div>
             <table class={styles.MemoryGrid} onScroll={() => {}}>
                 {chunkedMemory().map((row, index) => {

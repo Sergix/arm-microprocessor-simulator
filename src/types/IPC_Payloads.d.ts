@@ -1,5 +1,5 @@
 // from backend memory.rs
-interface IRAMPayload {
+interface IELFPayload {
 	checksum: number
 	loaded: boolean
 	memory_array: Array<number>

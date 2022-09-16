@@ -16,7 +16,7 @@ pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as Add
 // payload for tauri event emitter to send to frontend
 // https://tauri.app/v1/guides/features/events/#global-events-1
 #[derive(Clone, serde::Serialize)]
-pub struct RAMPayload {
+pub struct ELFPayload {
     pub checksum: Checksum,
     pub loaded: bool,
     pub memory_array: Vec<Byte>,
@@ -24,9 +24,9 @@ pub struct RAMPayload {
     pub filename: String
 }
 
-impl Default for RAMPayload {
+impl Default for ELFPayload {
     fn default() -> Self {
-        RAMPayload {
+        ELFPayload {
             checksum: 0,
             loaded: false,
             memory_array: vec![0, 0],
@@ -273,28 +273,34 @@ impl Registers {
         self.write_word((index * 4) as AddressSize, value)
     }
 
-    // TODO: add test
-    pub fn set_program_counter(&mut self, value: Word) {
-        self.set_register(15, value)
-    }
-
     // get a specified register as a word based on r#
-    pub fn get_as_word(&mut self, index: usize) -> Word {
+    pub fn get_register(&mut self, index: usize) -> Word {
         if index > 15 {
-            panic!("Registers[get_as_word]: register index out of range");
+            panic!("Registers[get_register]: register index out of range");
         }
 
         self.read_word((index * 4) as AddressSize)
     }
 
+    // TODO: add test
     pub fn get_all(&mut self) -> Vec<Word> {
         let mut regs: Vec<Word> = vec![0; 0];
         
         // skip CPSR (NUM_REGISTERS - 1)
         for i in 0..(NUM_REGISTERS - 1) {
-            regs.push(self.get_as_word(i));
+            regs.push(self.get_register(i));
         }
         regs
+    }
+
+    // TODO: add test
+    pub fn set_pc(&mut self, value: Word) {
+        self.set_register(15, value)
+    }
+
+    // TODO: add test
+    pub fn get_pc(&mut self) -> Word {
+        self.get_register(15)
     }
 
     // CPSR register is last register
@@ -690,7 +696,7 @@ mod tests {
         regs.memory_array[6] = 0xAE;
         regs.memory_array[7] = 0xFF;
 
-        assert_eq!(0xFFAE5545, regs.get_as_word(1));
+        assert_eq!(0xFFAE5545, regs.get_register(1));
     }
 
     #[test]
@@ -698,6 +704,6 @@ mod tests {
     fn test_get_as_word_range_error() {
         let mut regs = Registers::default();
 
-        regs.get_as_word(16);
+        regs.get_register(16);
     }
 }
