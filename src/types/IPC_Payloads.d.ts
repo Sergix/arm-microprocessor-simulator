@@ -11,6 +11,10 @@ interface IRegistersPayload {
 	register_array: Array<number>
 }
 
+interface IRAMPayload {
+	memory_array: Array<number>
+}
+
 interface IFlagsPayload {
 	n: boolean
     z: boolean

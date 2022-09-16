@@ -10,6 +10,7 @@ const Toolbar: Component = () => {
     const run = async () => {
         setRunning(true)
         await invoke('cmd_run')
+        setRunning(false)
     }
 
     const step = async () => {

@@ -9,10 +9,10 @@ const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
     const [registers, setRegisters] = createSignal(Array<number>())
 
     createEffect(() => {
-        listen('register_update', ({ payload }: { payload: Array<number> }) => {
-            log.trace("SolidJS[RegisterPanel.listen]: updating registers")
-            console.log("register payload", payload)
-            setRegisters(payload)
+        listen('registers_update', ({ payload }: { payload: IRegistersPayload }) => {
+            log.trace("SolidJS[RegisterPanel.listen]: updating registers...")
+            console.log("registers payload", payload)
+            setRegisters(payload.register_array)
         })
     })
 

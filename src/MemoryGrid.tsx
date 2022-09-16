@@ -1,8 +1,9 @@
 import { Component, createEffect, createMemo, createSignal, mergeProps } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
-import { memory, checksum } from './state'
+import { memory, checksum, setMemory } from './state'
 import styles from './MemoryGrid.module.css'
+import { listen } from "@tauri-apps/api/event"
 
 const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
 
@@ -53,7 +54,13 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     
     // rechunk memory when state updates
     const [chunkedMemory, setChunkedMemory] = createSignal(chunk(memory(), 0))
-    createEffect(() => setChunkedMemory(chunk(memory(), 0)))
+
+    // rechunk memory with same starting address (starting address is reset on loading a new elf file since the component is unmounted)
+    createEffect(() => setChunkedMemory(chunk(memory(), startingAddress())))
+    listen('ram_update', ({ payload }: { payload: IRAMPayload }) => {
+        log.trace('SolidJS[MemoryGrid.listen]: updating global memory state...')
+        setMemory(payload.memory_array)
+    })
 
     // have them separate so that the visible state isn't updated as the user types
     const [startingAddress, setStartingAddress] = createSignal(0)

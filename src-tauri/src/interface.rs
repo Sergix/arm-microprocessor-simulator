@@ -1,9 +1,29 @@
-use lib::{state::{CPUState, CPUThreadWatcherState}, memory::AddressSize};
+use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload}};
 use log::trace;
 use tauri::{AppHandle, Manager};
 
-pub fn emit_payloads (app_handle: AppHandle) {
-    
+pub async fn emit_payloads (app_handle: AppHandle) {
+    trace!("emit_payloads: attempting to lock state...");
+
+    let registers_state: RegistersState = app_handle.state();
+    let registers_lock = &mut registers_state.lock().await;
+    let ram_state: RAMState = app_handle.state();
+    let ram_lock = &mut ram_state.lock().await;
+
+    trace!("emit_payloads: obtained state locks");
+
+    app_handle.emit_all("registers_update", RegistersPayload {
+        register_array: registers_lock.get_all()
+    }).unwrap();
+    app_handle.emit_all("ram_update", RAMPayload {
+        memory_array: ram_lock.memory_array.clone()
+    }).unwrap();
+    app_handle.emit_all("flags_update", FlagsPayload {
+        n: registers_lock.get_n_flag(),
+        z: registers_lock.get_z_flag(),
+        c: registers_lock.get_c_flag(),
+        v: registers_lock.get_v_flag()
+    }).unwrap();
 }
 
 #[tauri::command]
@@ -14,9 +34,8 @@ pub async fn cmd_run(app_handle: AppHandle) -> Result<(), ()> {
     let cpu_lock = &mut cpu_state.lock().await;
     cpu_lock.run(app_handle.clone()).await;
 
-    // TODO: emit to listeners (register_update, ram_update) for once cpu has finished running or hit breakpoint
     trace!("cmd_run: sending payload to frontend...");
-    emit_payloads(app_handle.clone());
+    emit_payloads(app_handle.clone()).await;
 
     Ok(())
 }
@@ -30,8 +49,8 @@ pub async fn cmd_step(app_handle: AppHandle) -> Result<(), ()> {
 
     cpu_lock.step(app_handle.clone()).await;
 
-    // TODO: emit to listeners
     trace!("cmd_step: CPU step finished, sending payload to frontend...");
+    emit_payloads(app_handle.clone()).await;
     
     Ok(())
 }

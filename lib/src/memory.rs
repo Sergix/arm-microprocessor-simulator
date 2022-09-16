@@ -15,6 +15,7 @@ pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as Add
 
 // payload for tauri event emitter to send to frontend
 // https://tauri.app/v1/guides/features/events/#global-events-1
+// TODO: move to elf.rs file
 #[derive(Clone, serde::Serialize)]
 pub struct ELFPayload {
     pub checksum: Checksum,
@@ -64,6 +65,19 @@ impl Default for FlagsPayload {
             c: false,
             z: false,
             v: false,
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct RAMPayload {
+    pub memory_array: Vec<Byte>
+}
+
+impl Default for RAMPayload {
+    fn default() -> Self {
+        RAMPayload {
+            memory_array: vec![0, 0],
         }
     }
 }

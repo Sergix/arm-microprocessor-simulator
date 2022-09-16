@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api'
-import { Component, createSignal, onMount } from 'solid-js'
+import { listen } from '@tauri-apps/api/event'
+import { Component, createEffect, createSignal, onMount } from 'solid-js'
 import * as log from 'tauri-plugin-log-api'
 
 const FlagsPanel: Component<IFlagsProp> = (prop: IFlagsProp) => {
@@ -8,15 +9,26 @@ const FlagsPanel: Component<IFlagsProp> = (prop: IFlagsProp) => {
     const [cFlag, setCFlag] = createSignal(false)
     const [vFlag, setVFlag] = createSignal(false)
 
-    onMount(async () => {
-        log.trace("SolidJS[FlagsPanel.onMount]: getting CPSR flags state...")
-
-        const payload: IFlagsPayload = await invoke('cmd_get_flags')
-        
+    const setFlags = (payload: IFlagsPayload) => {
         setNFlag(payload.n)
         setZFlag(payload.z)
         setCFlag(payload.c)
         setVFlag(payload.v)
+    }
+
+    createEffect(() => {
+        listen('flags_update', ({ payload }: { payload: IFlagsPayload }) => {
+            log.trace("SolidJS[FlagsPanel.listen]: updating flags...")
+            console.log("flags payload", payload)
+            setFlags(payload)
+        })
+    })
+
+    onMount(async () => {
+        log.trace("SolidJS[FlagsPanel.onMount]: getting CPSR flags state...")
+
+        const payload: IFlagsPayload = await invoke('cmd_get_flags')
+        setFlags(payload)
     })
 
     return (
