@@ -1,3 +1,7 @@
 .toolbar_btn {
     @apply px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500;
 }
+
+.toolbar_btn:disabled {
+    @apply bg-gray-700;
+}

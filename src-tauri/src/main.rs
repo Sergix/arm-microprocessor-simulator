@@ -15,6 +15,7 @@ mod interface;
 
 use lib::memory;
 use lib::options;
+use lib::cpu;
 use lib::state::OptionsState;
 use lib::state::RAMState;
 use log::trace;
@@ -35,6 +36,8 @@ fn main() {
             app.manage(Mutex::new(memory::Registers::default()));
             app.manage(Mutex::new(memory::RAM::default()));
             app.manage(Mutex::new(options::Options::default()));
+            app.manage(Mutex::new(cpu::CPU::default()));
+            app.manage(Mutex::new(cpu::CPUThreadWatcher::default()));
 
             match app.get_cli_matches() {
                 Ok(matches) => {
@@ -91,6 +94,7 @@ fn main() {
             flags::cmd_get_flags,
             interface::cmd_run,
             interface::cmd_step,
+            interface::cmd_stop,
             interface::cmd_add_breakpoint
         ])
         .plugin(

@@ -8,18 +8,16 @@ const Toolbar: Component = () => {
     const [running, setRunning] = createSignal(false);
 
     const run = async () => {
-        await invoke('cmd_run')
         setRunning(true)
+        await invoke('cmd_run')
     }
 
     const step = async () => {
-        // TODO: get payload with updates to memory, registers, etc.
         await invoke('cmd_step')
     }
 
     const stop = async () => {
-        let isStopped: boolean = await invoke('cmd_stop')
-        setRunning(isStopped)
+        await invoke('cmd_stop')
     }
 
     const addBreakpoint = async () => {

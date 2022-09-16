@@ -1,4 +1,4 @@
-use log::{error, trace};
+use log::error;
 use object::Endianness;
 
 pub type Byte = u8;
@@ -301,6 +301,12 @@ impl Registers {
     // TODO: add test
     pub fn get_pc(&mut self) -> Word {
         self.get_register(15)
+    }
+
+    // TODO: add test
+    pub fn inc_pc(&mut self) {
+        let next_addr = self.get_pc() + 4;
+        self.set_register(15, next_addr)
     }
 
     // CPSR register is last register
