@@ -1,5 +1,4 @@
-use log::trace;
-use log::error;
+use log::{error, trace};
 use object::Endianness;
 
 pub type Byte = u8;
@@ -265,6 +264,20 @@ pub struct Registers {
 }
 
 impl Registers {
+    // TODO: add test
+    pub fn set_register(&mut self, index: usize, value: Word) {
+        if index > 15 {
+            panic!("Registers[set_register]: register index out of range");
+        }
+
+        self.write_word((index * 4) as AddressSize, value)
+    }
+
+    // TODO: add test
+    pub fn set_program_counter(&mut self, value: Word) {
+        self.set_register(15, value)
+    }
+
     // get a specified register as a word based on r#
     pub fn get_as_word(&mut self, index: usize) -> Word {
         if index > 15 {
@@ -272,6 +285,16 @@ impl Registers {
         }
 
         self.read_word((index * 4) as AddressSize)
+    }
+
+    pub fn get_all(&mut self) -> Vec<Word> {
+        let mut regs: Vec<Word> = vec![0; 0];
+        
+        // skip CPSR (NUM_REGISTERS - 1)
+        for i in 0..(NUM_REGISTERS - 1) {
+            regs.push(self.get_as_word(i));
+        }
+        regs
     }
 
     // CPSR register is last register

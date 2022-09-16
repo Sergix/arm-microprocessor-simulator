@@ -3,7 +3,7 @@
     ELF loader that interacts with frontend
 */
 
-use crate::memory_state::{ RAMState };
+use crate::memory_state::{ RAMState, RegistersState };
 use crate::options_state::{ OptionsState };
 
 use lib::memory::{self, Memory};
@@ -60,6 +60,9 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     let mut memory_lock = app_memory_state.lock().await;
     let memory_size: usize = memory_lock.size;
 
+    let app_registers_state: RegistersState = app_handle.state();
+    let mut registers_lock = app_registers_state.lock().await;
+
     // clear memory
     memory_lock.memory_array.clear();
     memory_lock.memory_array.resize(memory_size, 0);
@@ -97,6 +100,11 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
 
             let endianness = elf_object.endian().unwrap();
 
+            // get the entry point and load it into r15 (program counter)
+            let e_entry = elf_object.e_entry.get(endianness);
+            registers_lock.set_program_counter(e_entry);
+            trace!("load_elf: {}e_entry", e_entry);
+
             // loop over program header segments (e_phnum)
             trace!("load_elf: {} segments", elf_object.e_phnum(endianness));
             for segment in elf_object.program_headers(endianness, &*bin_data).unwrap() {
@@ -131,6 +139,10 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
             return ()
         }
     }
+
+    app_handle.emit_all("register_update", memory::RegistersPayload {
+        register_array: registers_lock.get_all()
+    }).unwrap();
 
     // notify the frontend when an ELF binary is successfully loaded
     app_handle.emit_all("elf_load", memory::RAMPayload {

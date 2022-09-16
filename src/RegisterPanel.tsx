@@ -10,6 +10,8 @@ const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
 
     createEffect(() => {
         listen('register_update', ({ payload }: { payload: Array<number> }) => {
+            log.trace("SolidJS[RegisterPanel.listen]: updating registers")
+            console.log("register payload", payload)
             setRegisters(payload)
         })
     })
