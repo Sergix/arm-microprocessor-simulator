@@ -15,6 +15,8 @@ use object::elf;
 use std::path:: Path;
 use tauri::{AppHandle, Manager};
 
+use crate::interface;
+
 #[tauri::command]
 pub async fn cmd_get_elf(memory_state: RAMState<'_>, options_state: OptionsState<'_>) -> Result<memory::ELFPayload, memory::ELFPayload> {
     trace!("cmd_get_memory: checking if ELF has been loaded...");
@@ -54,17 +56,16 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     // get global state from app handler
     // https://discord.com/channels/616186924390023171/1012276284430229576/1012403646295707738
     // https://github.com/tauri-apps/tauri/discussions/1336#discussioncomment-1936523
-    let app_memory_state: RAMState = app_handle.state();
-    let mut memory_lock = app_memory_state.lock().await;
-    let memory_size: usize = memory_lock.size;
+    let app_ram_state: RAMState = app_handle.state();
+    let mut ram_lock = app_ram_state.lock().await;
 
     let app_registers_state: RegistersState = app_handle.state();
     let mut registers_lock = app_registers_state.lock().await;
 
     // clear memory
-    memory_lock.memory_array.clear();
-    memory_lock.memory_array.resize(memory_size, 0);
-
+    ram_lock.clear();
+    registers_lock.clear();
+    
     // resolve path
     // https://crates.io/crates/normpath
     let path = Path::new(&filename);
@@ -90,7 +91,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
                 Err(_) => {
                     // TODO: two occurences of this, refactor to separate function
                     error!("load_elf: invalid ELF header");
-                    memory_lock.loaded = false;
+                    ram_lock.loaded = false;
                     app_handle.emit_all("invalid_elf", {}).unwrap();
                     return ()
                 }
@@ -120,33 +121,30 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
                 // write segment data to memory starting at paddr
                 let segment_data = segment.data(endianness, &*bin_data).unwrap();
                 for i in 0..(memsz - 1) {
-                    memory_lock.write_byte(paddr + i, segment_data[i as usize] as u8);
+                    ram_lock.write_byte(paddr + i, segment_data[i as usize] as u8);
                 }
             }
 
             // update state
-            memory_lock.checksum = memory_lock.calculate_checksum();
-            memory_lock.endianness = endianness;
-            memory_lock.loaded = true;
+            ram_lock.checksum = ram_lock.calculate_checksum();
+            ram_lock.endianness = endianness;
+            ram_lock.loaded = true;
         }
         Err(e) => {
             // TODO: two occurences of this, refactor to separate function
             error!("load_elf: error loading ELF: {}", e);
-            memory_lock.loaded = false;
+            ram_lock.loaded = false;
             app_handle.emit_all("invalid_elf", {}).unwrap();
             return ()
         }
     }
 
-    app_handle.emit_all("register_update", memory::RegistersPayload {
-        register_array: registers_lock.get_all()
-    }).unwrap();
-
     // notify the frontend when an ELF binary is successfully loaded
+    // TODO: move to crate::interface with global elf state object?
     app_handle.emit_all("elf_load", memory::ELFPayload {
-        checksum: memory_lock.checksum,
-        loaded: memory_lock.loaded,
-        memory_array: memory_lock.memory_array.clone(),
+        checksum: ram_lock.checksum,
+        loaded: ram_lock.loaded,
+        memory_array: ram_lock.memory_array.clone(),
         error: error.clone(),
         filename: String::clone(&path_str)
     }).unwrap();

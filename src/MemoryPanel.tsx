@@ -2,7 +2,7 @@ import { Component, createEffect, createMemo, createSignal, mergeProps } from "s
 import * as log from 'tauri-plugin-log-api'
 
 import { memory, checksum, setMemory } from './state'
-import styles from './MemoryGrid.module.css'
+import styles from './MemoryPanel.module.css'
 import { listen } from "@tauri-apps/api/event"
 
 const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
@@ -66,6 +66,14 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     const [startingAddress, setStartingAddress] = createSignal(0)
     const [inputStartingAddress, setInputStartingAddress] = createSignal(0)
 
+    const validateAndSetInputStartingAddress = (value: string) => {
+        let n = parseInt(value, 16)
+        if (n === NaN)
+            alert("Invalid starting address; must be base 16 value")
+        else {
+            setInputStartingAddress(n)
+        }
+    }
     
     const scrollToStartingAddress = () => {
         const startingAddressRow = Math.ceil(startingAddress() / MEMORY_ROW_SIZE)
@@ -78,7 +86,7 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
             <div class="flex flex-row align-middle my-2">
                 <p class="font-mono text-sm my-auto">Checksum: {checksum()}</p>
                 <div class="flex align-middle justify-start ml-4">
-                    <input onInput={(e) => setInputStartingAddress(parseInt(e.currentTarget.value))} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
+                    <input onInput={(e) => validateAndSetInputStartingAddress(e.currentTarget.value)} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
                     <button class="text-sm ml-2" onClick={(_) => {
                         setStartingAddress(inputStartingAddress())
                         setChunkedMemory(chunk(memory(), startingAddress()))

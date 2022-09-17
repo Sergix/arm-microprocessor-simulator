@@ -70,6 +70,14 @@ impl CPU {
     }
 
     // TODO: add tests
+    pub fn remove_breakpoint(&mut self, address: AddressSize) {
+        trace!("add_breakpoint: {}", address);
+        // https://stackoverflow.com/a/26243276
+        let index = self.breakpoints.iter().position(|breakpoint| *breakpoint == address).unwrap();
+        self.breakpoints.remove(index);
+    }
+
+    // TODO: add tests
     pub fn is_breakpoint(&self, address: &AddressSize) -> bool {
         self.breakpoints.contains(&address)
     }
@@ -82,11 +90,11 @@ impl CPU {
         trace!("run: stepping into cycle");
         // fetch-decode-execute
         loop {
-            // stop when running flag is updated
+            // stop when thread flag is updated
             let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
             if !cpu_thread_state.lock().await.is_running() { break }
 
-            // stop when HLT instruction is reached
+            // stop when HLT instruction or breakpoint is reached
             if self.step(app_handle.clone()).await { break }
         }
 
@@ -100,8 +108,15 @@ impl CPU {
         let ram_lock = &mut ram_state.lock().await;
         let registers_lock = &mut registers_state.lock().await;
 
+        // increment program counter
+        registers_lock.inc_pc();
+
         // stop when pc hits breakpoint address
-        if self.is_breakpoint(&registers_lock.get_pc()) { self.stop(app_handle.clone()).await; return true }
+        if self.is_breakpoint(&registers_lock.get_pc()) { 
+            trace!("step: hit breakpoint");
+            self.stop(app_handle.clone()).await;
+            return true
+        }
         
         let instruction = self.fetch(ram_lock, registers_lock);
         trace!("step: {}pc = {}", registers_lock.get_pc(), instruction);
@@ -111,9 +126,6 @@ impl CPU {
 
         self.decode();
         self.execute();
-
-        // increment program counter
-        registers_lock.inc_pc();
 
         return false;
     }

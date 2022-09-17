@@ -11,7 +11,6 @@ const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
     createEffect(() => {
         listen('registers_update', ({ payload }: { payload: IRegistersPayload }) => {
             log.trace("SolidJS[RegisterPanel.listen]: updating registers...")
-            console.log("registers payload", payload)
             setRegisters(payload.register_array)
         })
     })
@@ -27,17 +26,26 @@ const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
     return (
         <section>
             <h3>Registers</h3>
-            <ul class="font-mono">
+            <table class="font-mono">
+                <thead>
+                    <tr>
+                        <td>r#</td>
+                        <td class="pl-4">Value (0x)</td>
+                    </tr>
+                </thead>
+                <tbody>
                 {
                     indexArray(registers, (register: Accessor<number>, i: number) => {
                         return (
-                            <li>
-                                {`r${i}: `} {register().toString(16).padStart(8, '0')}
-                            </li>
+                            <tr>
+                                <td class="text-right">{`r${i}`}</td>
+                                <td class="pl-4 text-right">{register().toString(16).padStart(8, '0')}</td>
+                            </tr>
                         )
                     })
                 }
-            </ul>
+                </tbody>
+            </table>
         </section>
     )
 }

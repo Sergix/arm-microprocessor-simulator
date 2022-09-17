@@ -19,7 +19,6 @@ const FlagsPanel: Component<IFlagsProp> = (prop: IFlagsProp) => {
     createEffect(() => {
         listen('flags_update', ({ payload }: { payload: IFlagsPayload }) => {
             log.trace("SolidJS[FlagsPanel.listen]: updating flags...")
-            console.log("flags payload", payload)
             setFlags(payload)
         })
     })

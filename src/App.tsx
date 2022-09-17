@@ -1,14 +1,15 @@
 import { Component, Show } from 'solid-js';
-import { createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { onMount, onCleanup } from 'solid-js';
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/dialog'
 import * as log from 'tauri-plugin-log-api'
+import hotkeys from 'hotkeys-js'
 
-import {setMemory, setChecksum} from './state'
+import {setMemory, setChecksum, setFilename, filename, loaded, setLoaded} from './state'
 
 import styles from './App.module.css';
-import MemoryGrid from './MemoryGrid';
+import MemoryPanel from './MemoryPanel';
 import RegisterPanel from './RegisterPanel';
 import StackPanel from './StackPanel';
 import TerminalPanel from './TerminalPanel';
@@ -19,34 +20,30 @@ import Toolbar from './Toolbar';
 const App: Component = () => {
 	log.attachConsole();
 
-	const [filename, setFilename] = createSignal("")
-	const [loaded, setLoaded] = createSignal(false)
+	// attach keybind event listeners
+	hotkeys('ctrl+o', (e, _) => {
+		e.preventDefault()
+		handleLoad()
+	})
 	
-	createEffect(() => {
-		listen('elf_load', ({ payload }: { payload: IELFPayload }) => {
-			log.trace("SolidJS[App]: loading ELF...")
+	listen('elf_load', ({ payload }: { payload: IELFPayload }) => {
+		log.trace("SolidJS[App]: loading ELF...")
 
-			setLoaded(payload.loaded)
-			setChecksum(payload.checksum)
-			setMemory(payload.memory_array)
+		setLoaded(payload.loaded)
+		setChecksum(payload.checksum)
+		setMemory(payload.memory_array)
 
-			log.trace("SolidJS[App]: loaded ELF")
-		});
+		log.trace("SolidJS[App]: loaded ELF")
+	});
 		
-		// TODO: get unlistener for unmount (if needed)
-		// https://github.com/FabianLars/mw-toolbox/blob/main/gui/src/pages/Upload/Upload.tsx#L70
-	})
-
-	createEffect(() => {
-		listen('invalid_elf', (payload) => {
-			log.trace("SolidJS[App]: invalid ELF, clearing UI")
-			alert("Invalid ELF file.")
-			setLoaded(false)
-		})
+	listen('invalid_elf', (payload) => {
+		log.trace("SolidJS[App]: invalid ELF, clearing UI")
+		alert("Invalid ELF file.")
+		setLoaded(false)
 	})
 	
-	// check if a binary has been loaded by command-line args
 	onMount(async () => {
+		// check if a binary has been loaded by command-line args
 		try {
 			const payload: IELFPayload = await invoke('cmd_get_memory')
 
@@ -59,10 +56,6 @@ const App: Component = () => {
 		} catch {
 			log.trace(`SolidJS[App.onMount]: no elf loaded`)
 		}
-	})
-	
-	onCleanup(() => {
-		// TODO: call unlistener for elf_load (see above)
 	})
 	
 	const handleLoad = async () => {
@@ -94,14 +87,13 @@ const App: Component = () => {
 				<button class={styles.file_loader_button} onClick={handleLoad}>
 					Load ELF
 				</button>
-				<p class="font-mono text-left text-sm">{ loaded() ? filename : "None." }</p>
+				<p class="font-mono text-left text-sm">{ loaded() ? filename() : "None." }</p>
 			</header>
 			<Show when={loaded()}>
 				<Toolbar/>
 				<div class="flex flex-row">
 					<div class="flex flex-col">
-						<MemoryGrid/>
-						<TerminalPanel/>
+						<MemoryPanel/>
 						<DisassemblyPanel/>
 					</div>
 					<div class="flex flex-col">
@@ -110,6 +102,7 @@ const App: Component = () => {
 					</div>
 					<div class="flex flex-col">
 						<FlagsPanel />
+						<TerminalPanel/>
 					</div>
 				</div>
 			</Show>

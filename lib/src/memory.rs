@@ -88,6 +88,12 @@ pub trait Memory {
     fn get_memory_array(&mut self) -> &mut Vec<Byte>;
     fn get_endianness(&self) -> Endianness;
 
+    fn clear(&mut self) {
+        let sz = self.get_size();
+        self.get_memory_array().clear();
+        self.get_memory_array().resize(sz, 0);
+    }
+
     fn read_word(&mut self, addr: AddressSize) -> Word {
         if (addr + 3) as usize > self.get_size() {
             panic!("Memory[read_word]: addr extends past memory size");

@@ -95,7 +95,10 @@ fn main() {
             interface::cmd_run,
             interface::cmd_step,
             interface::cmd_stop,
-            interface::cmd_add_breakpoint
+            interface::cmd_reset,
+            interface::cmd_add_breakpoint,
+            interface::cmd_remove_breakpoint,
+            interface::cmd_toggle_breakpoint
         ])
         .plugin(
             LoggerBuilder::new()

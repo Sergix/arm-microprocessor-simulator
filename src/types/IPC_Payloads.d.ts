@@ -21,3 +21,15 @@ interface IFlagsPayload {
     c: boolean
     v: boolean
 }
+
+// array containing tuple, each with
+// - instruction address (focuses at current PC): Word/number
+// - instruction at that address: Word/number
+// - disassembled representation: String/string
+// program counter: Word/number
+interface IDisassemblyInstruction extends Array<number | string | boolean> { 0: boolean, 1: number, 2: number, 3: string }
+interface IDisassemblyPayload {
+	pc: number
+	instructions: Array<IDisassemblyInstruction>
+	breakpoint: boolean
+}

@@ -1,7 +1,11 @@
-.toolbar_btn {
+.toolbar {
+    @apply w-screen p-2 bg-gray-700 flex flex-row rounded-b-md;
+}
+
+.toolbar > button {
     @apply px-3 py-1 mx-1 bg-gray-600 rounded-md hover:bg-gray-500;
 }
 
-.toolbar_btn:disabled {
+.toolbar > button:disabled {
     @apply bg-gray-700;
 }
