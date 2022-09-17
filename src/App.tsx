@@ -31,8 +31,8 @@ const App: Component = () => {
 
 		setLoaded(payload.loaded)
 		setChecksum(payload.checksum)
-		setMemory(payload.memory_array)
-
+		setFilename(payload.filename)
+		
 		log.trace("SolidJS[App]: loaded ELF")
 	});
 		
@@ -50,7 +50,6 @@ const App: Component = () => {
 			setLoaded(payload.loaded)
 			setChecksum(payload.checksum)
 			setFilename(payload.filename)
-			setMemory(payload.memory_array)
 
 			log.trace("SolidJS[App.onMount]: loaded elf")
 		} catch {
@@ -91,16 +90,16 @@ const App: Component = () => {
 			</header>
 			<Show when={loaded()}>
 				<Toolbar/>
-				<div class="flex flex-row">
-					<div class="flex flex-col">
+				<div class="flex flex-row p-1">
+					<div class="flex flex-col p-1 overflow-hidden">
 						<MemoryPanel/>
 						<DisassemblyPanel/>
 					</div>
-					<div class="flex flex-col">
+					<div class="flex flex-col p-1 overflow-hidden">
 						<RegisterPanel/>
 						<StackPanel/>
 					</div>
-					<div class="flex flex-col">
+					<div class="flex flex-col p-1 overflow-hidden">
 						<FlagsPanel />
 						<TerminalPanel/>
 					</div>

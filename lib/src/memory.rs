@@ -20,7 +20,6 @@ pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as Add
 pub struct ELFPayload {
     pub checksum: Checksum,
     pub loaded: bool,
-    pub memory_array: Vec<Byte>,
     pub error: String,
     pub filename: String
 }
@@ -30,7 +29,6 @@ impl Default for ELFPayload {
         ELFPayload {
             checksum: 0,
             loaded: false,
-            memory_array: vec![0, 0],
             error: String::from(""),
             filename: String::from("")
         }

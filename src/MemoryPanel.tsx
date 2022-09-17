@@ -1,70 +1,75 @@
-import { Component, createEffect, createMemo, createSignal, mergeProps } from "solid-js"
+import { Component, createEffect, createMemo, createSignal, mergeProps, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
 import { memory, checksum, setMemory } from './state'
 import styles from './MemoryPanel.module.css'
 import { listen } from "@tauri-apps/api/event"
+import { invoke } from "@tauri-apps/api"
 
-const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
+const MEMORY_ROW_SIZE = 16;
+// split into individual rows based on offset
+const chunk = (payload_memory_array: Array<number>, offset: number) => {
 
-    const MEMORY_ROW_SIZE = 16;
+    // shallow copy since arrays are pass-by-ref
+    const payload_memory_array_copy = [...payload_memory_array]
 
-    // split into individual rows based on offset
-    const chunk = (payload_memory_array: Array<number>, offset: number) => {
+    if (offset === NaN) {
+        log.error("SolidJS[MemoryGrid.chunk]: offset must be a number")
+        offset = 0
+    }
 
-        // shallow copy since arrays are pass-by-ref
-        const payload_memory_array_copy = [...payload_memory_array]
-
-        if (offset === NaN) {
-            log.error("SolidJS[MemoryGrid.chunk]: offset must be a number")
-            offset = 0
-        }
-
-        if (offset < 0) {
-            log.error("SolidJS[MemoryGrid.chunk]: offset must be a positive number")
-            offset = 0
-        }
-        
-        log.trace("SolidJS[MemoryGrid.chunk]: chunking memory table...")
-
-        let memory_array = new Array<Array<number>>()
-        
-        const payload_memory_array_size = payload_memory_array_copy.length
-        const first_row_size = offset % MEMORY_ROW_SIZE
-        const full_row_count = Math.floor((payload_memory_array_size - first_row_size) / MEMORY_ROW_SIZE)
-        const last_row_size = payload_memory_array_size - ((MEMORY_ROW_SIZE * full_row_count) + first_row_size)
-        
-        if (first_row_size > 0)
-            memory_array.push(payload_memory_array_copy.splice(0, first_row_size))
-
-        if (payload_memory_array_size < MEMORY_ROW_SIZE) {
-            log.trace("SolidJS[MemoryGrid.chunk]: nothing to chunk, exiting early (memory may still be loading)")
-            return memory_array
-        }
-
-        while (payload_memory_array_copy.length > last_row_size)
-            memory_array.push(payload_memory_array_copy.splice(0, MEMORY_ROW_SIZE))
-
-        if (last_row_size > 0)
-            memory_array.push(payload_memory_array_copy.splice(0, last_row_size))
-
-        log.trace("SolidJS[MemoryGrid.chunk]: finished chunking")
-        return memory_array
+    if (offset < 0) {
+        log.error("SolidJS[MemoryGrid.chunk]: offset must be a positive number")
+        offset = 0
     }
     
+    log.trace("SolidJS[MemoryGrid.chunk]: chunking memory table...")
+
+    let memory_array = new Array<Array<number>>()
+    
+    const payload_memory_array_size = payload_memory_array_copy.length
+    const first_row_size = offset % MEMORY_ROW_SIZE
+    const full_row_count = Math.floor((payload_memory_array_size - first_row_size) / MEMORY_ROW_SIZE)
+    const last_row_size = payload_memory_array_size - ((MEMORY_ROW_SIZE * full_row_count) + first_row_size)
+    
+    if (first_row_size > 0)
+        memory_array.push(payload_memory_array_copy.splice(0, first_row_size))
+
+    if (payload_memory_array_size < MEMORY_ROW_SIZE) {
+        log.trace("SolidJS[MemoryGrid.chunk]: nothing to chunk, exiting early (memory may still be loading)")
+        return memory_array
+    }
+
+    while (payload_memory_array_copy.length > last_row_size)
+        memory_array.push(payload_memory_array_copy.splice(0, MEMORY_ROW_SIZE))
+
+    if (last_row_size > 0)
+        memory_array.push(payload_memory_array_copy.splice(0, last_row_size))
+
+    log.trace("SolidJS[MemoryGrid.chunk]: finished chunking")
+    return memory_array
+}
+
+const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     // rechunk memory when state updates
     const [chunkedMemory, setChunkedMemory] = createSignal(chunk(memory(), 0))
+    // have them separate so that the visible state isn't updated as the user types
+    const [startingAddress, setStartingAddress] = createSignal(0)
+    const [inputStartingAddress, setInputStartingAddress] = createSignal(0)
 
     // rechunk memory with same starting address (starting address is reset on loading a new elf file since the component is unmounted)
     createEffect(() => setChunkedMemory(chunk(memory(), startingAddress())))
+    
+    // updates from backend
+    onMount(async () => {
+        log.trace('SolidJS[MemoryGrid.onMount]: updating global memory state...')
+        const payload: IRAMPayload = await invoke('cmd_get_ram')
+        setMemory(payload.memory_array)
+    })
     listen('ram_update', ({ payload }: { payload: IRAMPayload }) => {
         log.trace('SolidJS[MemoryGrid.listen]: updating global memory state...')
         setMemory(payload.memory_array)
     })
-
-    // have them separate so that the visible state isn't updated as the user types
-    const [startingAddress, setStartingAddress] = createSignal(0)
-    const [inputStartingAddress, setInputStartingAddress] = createSignal(0)
 
     const validateAndSetInputStartingAddress = (value: string) => {
         let n = parseInt(value, 16)
@@ -81,9 +86,9 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     }
 
     return (
-        <section class="h-96 overflow-hidden">
+        <section class="h-96">
             <h3>Memory</h3>
-            <div class="flex flex-row align-middle my-2">
+            <div class="flex flex-row align-middle my-2 flex-wrap">
                 <p class="font-mono text-sm my-auto">Checksum: {checksum()}</p>
                 <div class="flex align-middle justify-start ml-4">
                     <input onInput={(e) => validateAndSetInputStartingAddress(e.currentTarget.value)} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>

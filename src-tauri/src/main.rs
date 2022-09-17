@@ -12,8 +12,10 @@ mod loader;
 mod registers;
 mod flags;
 mod interface;
+mod memory_cmd;
 
 use lib::memory;
+use lib::memory::Byte;
 use lib::options;
 use lib::cpu;
 use lib::state::OptionsState;
@@ -92,6 +94,7 @@ fn main() {
             loader::cmd_load_elf,
             registers::cmd_get_registers,
             flags::cmd_get_flags,
+            memory_cmd::cmd_get_ram,
             interface::cmd_run,
             interface::cmd_step,
             interface::cmd_stop,
@@ -106,6 +109,24 @@ fn main() {
               .targets(targets)
               .build(),
           )
+        .register_uri_scheme_protocol("ram", |app_handle, _req| {
+            let ram_state: RAMState = app_handle.state();
+
+            let ram_buf: Vec<Byte>;
+            // release lock immediately
+            { 
+                ram_buf = ram_state.blocking_lock().memory_array.clone();
+            }
+            
+            // IPC socket for updating RAM when frontend requests
+            // from example: https://github.com/JonasKruckenberg/pisano/blob/1fd0e722f1df70874aa0268690213fa7b37f5e66/src-tauri/src/main.rs
+            tauri::http::ResponseBuilder::new()
+                .header("Origin", "*")
+                .mimetype("application/octet-stream")
+                .header("Content-Length", ram_buf.len())
+                .status(200)
+                .body(ram_buf)
+        })
         .run(context)
         .expect("error while running tauri application");
 

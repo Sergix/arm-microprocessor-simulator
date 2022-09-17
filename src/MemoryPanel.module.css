@@ -6,6 +6,7 @@
     @apply h-64;
     @apply pr-4;
     @apply scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800;
+    @apply w-full;
 }
 
 .MemoryGrid > caption {

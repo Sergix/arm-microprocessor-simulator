@@ -5,4 +5,6 @@
 - refactor memory panel updating
   - remove memory chunking -- most expensive operation
   - passing memory from backend is also expensive; compress?
-  - use custom protocol (websocket) instead of Tauri events
+  - use custom protocol instead of Tauri events
+- vertical resizing
+- visual indicators for when the the cpu is running or keybinds have been pressed
