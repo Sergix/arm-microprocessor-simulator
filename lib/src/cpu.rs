@@ -46,30 +46,25 @@ impl CPU {
         trace!("stop: set running flag to false")
     }
 
-    // TODO: add tests
     pub fn fetch(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>) -> Word {
         // return read word from RAM address specified by value of PC register
         ram_lock.read_word(registers_lock.get_pc())
     }
 
-    // TODO: add tests
     pub fn decode(&self) {
         // do nothing
     }
 
-    // TODO: add tests
     pub fn execute(&self) {
         // pause for 1/4 sec
         thread::sleep(time::Duration::from_millis(250))
     }
 
-    // TODO: add tests
     pub fn add_breakpoint(&mut self, address: AddressSize) {
         trace!("add_breakpoint: {}", address);
         self.breakpoints.push(address)
     }
 
-    // TODO: add tests
     pub fn remove_breakpoint(&mut self, address: AddressSize) {
         trace!("add_breakpoint: {}", address);
         // https://stackoverflow.com/a/26243276
@@ -77,7 +72,6 @@ impl CPU {
         self.breakpoints.remove(index);
     }
 
-    // TODO: add tests
     pub fn is_breakpoint(&self, address: &AddressSize) -> bool {
         self.breakpoints.contains(&address)
     }
@@ -136,5 +130,58 @@ impl Default for CPU {
         Self {
             breakpoints: vec![0; 0]
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_fetch() {
+        let cpu = CPU::default();
+        
+    }
+
+    #[test]
+    fn test_decode() {
+        let cpu = CPU::default();
+
+    }
+
+    #[test]
+    fn test_execute() {
+        let cpu = CPU::default();
+
+    }
+
+    #[test]
+    fn test_add_breakpoint() {
+        let cpu = CPU::default();
+
+    }
+
+    #[test]
+    fn test_is_breakpoint() {
+        let cpu = CPU::default();
+
+    }
+
+    #[test]
+    fn test_remove_breakpoint() {
+        let cpu = CPU::default();
+
+    }
+
+    #[test]
+    fn test_run() {
+        let cpu = CPU::default();
+
+    }
+
+    #[test]
+    fn test_step() {
+        let cpu = CPU::default();
+
     }
 }

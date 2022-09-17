@@ -3,16 +3,29 @@
 **Name:** Peyton McGinnis  
 **Course:** CpS 310  
 **Submission date:** 3 September 2022  
-**Hours spent:** 34.5  
+**Hours spent this phase:** 20.65
+
+## Overview
+
+ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This application can load an ELF binary, disassemble the binary, and show the flags, memory, and stack as the application runs with inline run/step debugging.
 
 ## Features
 
 - `--mem` and `<elf-file>` command line options are supported and validated
 - Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
 - Scrollable memory grid
+  - Navigates to any given address and properly formats the table
 - ELF file loader in GUI
 - Simulated RAM with checksums
 - Complete unit tests for Memory logic
+- Disassembly table (with mocked assembly)
+- Register viewer (r0..15)
+- Flags display
+- Internal CPU simulator
+- Resizable window
+- Add and toggle breakpoints in the disassembly window
+- All hotkeys implemented
+- Multithreaded debugger controls -- Run, Step, Stop, Reset
 
 ## Prerequisites
 
@@ -44,18 +57,20 @@ Windows 10/11, macOS, Debian, Arch, Fedora, openSUSE
 1. Install the necessary software noted above for your platform.
 2. `git clone https://github.com/bjucps310/cps310-simulator-Sergix`
 3. `yarn install` at the root level of the project directory to install the necessary `npm` packages.
-4. `cargo tauri build` to build the project.
-    - To enable logging output to your shell when running the application, run `cargo tauri build --debug`.
+4. `yarn tauri build` to build the project.
+    - To enable logging output to your shell when running the application, run `yarn tauri build --debug`.
 
 The release target binary is exported to `/src-tauri/target/release` along with the platform-specific installer package files. The debug target binary is similarly in `/src-tauri/target/release`.
 
 ### Development
 
-To run the built-in development environment with hot module reloading (HMR), run `cargo tauri dev`.
+To run the built-in development environment with hot module reloading (HMR), run `yarn tauri dev`.
 
 ### Testing
 
-To run the tests, run `cd lib` -> `cargo test`. Testing is only implemented for the core logic.
+To run the tests, run `cd lib` -> `cargo test`.
+
+Testing is implemented for the Memory trait and for some of the CPU. Some of the CPU is untestable as core logic because it's tightly integrated with the threading logic of the application.
 
 ## Configuration
 
@@ -76,10 +91,41 @@ To launch the application from the command-line, navigate to the directory conta
 
 To specify the amount of simulated RAM, simply pass in the `--mem <memory_size>` option: `armsim.exe --mem 33768 elf_file.bin`
 
+#### Debugging Controls
+
+Once a binary is loaded, you can use the **Run** button in the toolbar to begin executing the application. The binary will run on a separate thread and continue until:
+1. A HLT (0x0) instruction is reached
+2. The **Stop** button is pressed
+3. A breakpoint is hit
+
+You can also use the **Step** button to step to the next instruction.
+
+Using the **Add Breakpoint** function, you can manually add a breakpoint at a given address.
+
+Press **Reset** to reset the display, memory, and registers, but keep all breakpoints intact.
+
+#### Hotkeys
+
+1. Load File: Ctrl-O
+2. Run: F5
+3. Single-step: F10
+4. Stop execution: Ctrl-Q
+5. Reset: Ctrl-R
+6. Toggle Breakpoint: Ctrl-B
+
+#### Memory Panel
+
+In the memory panel, you can enter a hex address in the *Address* input and press **GO** to navigate to that address in the table.
+
+#### Flags Panel
+
+When one of the NZCV flags is active, the flag's icon will be green.
 
 ## Bug Report
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
+- Loading the memory grid in the display causes the app to hang since it's currently a very large computation. Working on a new implementation that uses WebSocket IPC.
+- Panels are not resized when the window's height changes, only the width
 
 ## [Project Journal](CHANGELOG.md)
 

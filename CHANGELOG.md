@@ -127,10 +127,63 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 #### Sources
 
-- [https://stackoverflow.com/a/49856591](Trimming strings for different characters)
+- [Trimming strings for different characters](https://stackoverflow.com/a/49856591)
 - [`normpath` crate](https://crates.io/crates/normpath)
 - [Tauri file logging](https://github.com/tauri-apps/tauri-plugin-log/blob/dev/src/lib.rs#L100)
 
 #### Tests Passed
 
 - All tests in `/lib/src/memory.rs`:`Memory`
+
+## Week 3
+
+### 9-14-22
+
+#### Progress [2.15hrs]
+
+- Added state management for registers/flags
+
+#### Sources
+
+- [ARM CPSR Flags](https://developer.arm.com/documentation/ddi0406/b/System-Level-Architecture/The-System-Level-Programmers--Model/ARM-processor-modes-and-core-registers/Program-Status-Registers--PSRs-)
+
+### 9-15-22
+
+#### Progress [8.5hrs]
+
+- Updated memory grid logic to rechunk on updates and properly format based on the address offset given by the user
+- Added Flags and Registers panels
+- Payloads now send for each individual panel
+
+### 9-16-22
+
+#### Progress [5hrs]
+
+- Added CPU class
+- Added configurable breakpoints
+- Hotkeys implemented
+- Multhreaded implementation of CPU running
+- Fixed a lot of bugs related to thread locking
+- Added interface controls
+- Reconfigured how payloads are sent to the frontend
+
+#### Sources
+
+- [Does a mutex's lock drop immediately?](https://www.reddit.com/r/rust/comments/ws61hk/does_a_mutexs_lock_free_automatically_if_not/)
+- [Hotkeys.js](https://www.npmjs.com/package/hotkeys-js)
+- [Accessing self reference in a thread](https://stackoverflow.com/questions/54971024/accessing-a-method-of-self-inside-a-thread-in-rust)
+
+### 9-17-22
+
+**Checkpoint Reached: Checkpoint 2: GUI**
+
+#### Progress [5hrs]
+
+- Added disassembly panel and logic with mocked assembly instructions
+- Added breakpoint toggling
+- Added tests for CPU class
+- Updated CHANGELOG and README
+
+#### Sources
+
+- [Remove an item from an array in Rust](https://stackoverflow.com/a/26243276)
