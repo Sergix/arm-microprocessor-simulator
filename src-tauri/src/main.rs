@@ -8,11 +8,12 @@
     windows_subsystem = "windows"
 )]
 
-mod loader;
-mod registers;
-mod flags;
-mod interface;
+mod loader_cmd;
+mod registers_cmd;
+mod flags_cmd;
+mod interface_cmd;
 mod memory_cmd;
+mod disassembly_cmd;
 
 use lib::memory;
 use lib::memory::Byte;
@@ -83,25 +84,27 @@ fn main() {
             // if a cmd-line argument file was passed
             if !elf_file.is_empty() {
                 spawn(async move {
-                     loader::load_elf(String::clone(&elf_file), handle).await;
+                     loader_cmd::load_elf(String::clone(&elf_file), handle).await;
                 });
             }
             
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            loader::cmd_get_elf,
-            loader::cmd_load_elf,
-            registers::cmd_get_registers,
-            flags::cmd_get_flags,
+            loader_cmd::cmd_get_elf,
+            loader_cmd::cmd_load_elf,
+            registers_cmd::cmd_get_registers,
+            flags_cmd::cmd_get_flags,
             memory_cmd::cmd_get_ram,
-            interface::cmd_run,
-            interface::cmd_step,
-            interface::cmd_stop,
-            interface::cmd_reset,
-            interface::cmd_add_breakpoint,
-            interface::cmd_remove_breakpoint,
-            interface::cmd_toggle_breakpoint
+            memory_cmd::cmd_set_offset,
+            disassembly_cmd::cmd_get_disassembly,
+            interface_cmd::cmd_run,
+            interface_cmd::cmd_step,
+            interface_cmd::cmd_stop,
+            interface_cmd::cmd_reset,
+            interface_cmd::cmd_add_breakpoint,
+            interface_cmd::cmd_remove_breakpoint,
+            interface_cmd::cmd_toggle_breakpoint,
         ])
         .plugin(
             LoggerBuilder::new()

@@ -1403,6 +1403,7 @@ name = "lib"
 version = "0.1.0"
 dependencies = [
  "log",
+ "normpath",
  "object",
  "serde",
  "serde_json",

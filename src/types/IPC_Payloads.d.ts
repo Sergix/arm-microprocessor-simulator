@@ -12,7 +12,7 @@ interface IRegistersPayload {
 
 interface IRAMPayload {
 	checksum: number
-	memory_array: Array<number>
+	memory_array: Array<Array<number>>
 }
 
 interface IFlagsPayload {

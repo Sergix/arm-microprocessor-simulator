@@ -1,90 +1,54 @@
 import { Component, createEffect, createMemo, createSignal, mergeProps, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
-import { memory, checksum, setMemory, setChecksum } from './state'
 import styles from './css/MemoryPanel.module.css'
 import { listen } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api"
 
 const MEMORY_ROW_SIZE = 16;
-// split into individual rows based on offset
-const chunk = (payload_memory_array: Array<number>, offset: number) => {
-
-    // shallow copy since arrays are pass-by-ref
-    const payload_memory_array_copy = [...payload_memory_array]
-
-    if (offset === NaN) {
-        log.error("SolidJS[MemoryGrid.chunk]: offset must be a number")
-        offset = 0
-    }
-
-    if (offset < 0) {
-        log.error("SolidJS[MemoryGrid.chunk]: offset must be a positive number")
-        offset = 0
-    }
-    
-    log.trace("SolidJS[MemoryGrid.chunk]: chunking memory table...")
-
-    let memory_array = new Array<Array<number>>()
-    
-    const payload_memory_array_size = payload_memory_array_copy.length
-    const first_row_size = offset % MEMORY_ROW_SIZE
-    const full_row_count = Math.floor((payload_memory_array_size - first_row_size) / MEMORY_ROW_SIZE)
-    const last_row_size = payload_memory_array_size - ((MEMORY_ROW_SIZE * full_row_count) + first_row_size)
-    
-    if (first_row_size > 0)
-        memory_array.push(payload_memory_array_copy.splice(0, first_row_size))
-
-    if (payload_memory_array_size < MEMORY_ROW_SIZE) {
-        log.trace("SolidJS[MemoryGrid.chunk]: nothing to chunk, exiting early (memory may still be loading)")
-        return memory_array
-    }
-
-    while (payload_memory_array_copy.length > last_row_size)
-        memory_array.push(payload_memory_array_copy.splice(0, MEMORY_ROW_SIZE))
-
-    if (last_row_size > 0)
-        memory_array.push(payload_memory_array_copy.splice(0, last_row_size))
-
-    log.trace("SolidJS[MemoryGrid.chunk]: finished chunking")
-    return memory_array
-}
 
 const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
-    // rechunk memory when state updates
-    const [chunkedMemory, setChunkedMemory] = createSignal(chunk(memory(), 0))
-    // have them separate so that the visible state isn't updated as the user types
-    const [startingAddress, setStartingAddress] = createSignal(0)
-    const [inputStartingAddress, setInputStartingAddress] = createSignal(0)
+    const [checksum, setChecksum] = createSignal(0)
+    const [chunkedMemory, setChunkedMemory] = createSignal(new Array<Array<number>>())
 
-    // rechunk memory with same starting address (starting address is reset on loading a new elf file since the component is unmounted)
-    createEffect(() => setChunkedMemory(chunk(memory(), startingAddress())))
-    
+    // have them separate so that the visible state isn't updated as the user types
+    const [offset, setOffset] = createSignal(0)
+    const [inputOffset, setInputOffset] = createSignal(0)
+
     // updates from backend
     onMount(async () => {
-        log.trace('SolidJS[MemoryGrid.onMount]: updating global memory state...')
+        log.trace('SolidJS[MemoryPanel.onMount]: updating global memory state...')
         const payload: IRAMPayload = await invoke('cmd_get_ram')
         setChecksum(payload.checksum)
-        setMemory(payload.memory_array)
+        setChunkedMemory(payload.memory_array)
     })
     listen('ram_update', ({ payload }: { payload: IRAMPayload }) => {
-        log.trace('SolidJS[MemoryGrid.listen]: updating global memory state...')
+        log.trace('SolidJS[MemoryPanel.listen]: updating global memory state...')
         setChecksum(payload.checksum)
-        setMemory(payload.memory_array)
+        setChunkedMemory(payload.memory_array)
     })
 
-    const validateAndSetInputStartingAddress = (value: string) => {
+    const validateAndSetInputOffset = (value: string) => {
         let n = parseInt(value, 16)
         if (n === NaN)
             alert("Invalid starting address; must be base 16 value")
         else {
-            setInputStartingAddress(n)
+            setInputOffset(n)
         }
+    }
+
+    const getChunkedMemory = async () => {
+        log.trace(`SolidJS[MemoryPanel.getChunkedMemory]: rechunking of memory table with offset ${offset()}...`)
+
+        const payload: IRAMPayload = await invoke('cmd_set_offset', { offset: offset() });
+        
+        setChecksum(payload.checksum)
+        setChunkedMemory(payload.memory_array)
     }
     
     const scrollToStartingAddress = () => {
-        const startingAddressRow = Math.ceil(startingAddress() / MEMORY_ROW_SIZE)
-        document.getElementById(`${startingAddressRow}-0`)?.scrollIntoView()
+        const offsetRow = Math.ceil(offset() / MEMORY_ROW_SIZE)
+        document.getElementById(`${offsetRow}-0`)?.scrollIntoView()
     }
 
     return (
@@ -93,10 +57,10 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
             <div class="flex flex-row align-middle my-2 flex-wrap">
                 <p class="font-mono text-sm my-auto">Checksum: {checksum()}</p>
                 <div class="flex align-middle justify-start ml-4">
-                    <input onInput={(e) => validateAndSetInputStartingAddress(e.currentTarget.value)} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
+                    <input onInput={(e) => validateAndSetInputOffset(e.currentTarget.value)} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
                     <button class="text-sm ml-2" onClick={(_) => {
-                        setStartingAddress(inputStartingAddress())
-                        setChunkedMemory(chunk(memory(), startingAddress()))
+                        setOffset(inputOffset())
+                        getChunkedMemory()
                         scrollToStartingAddress()
                     }}>GO</button>
                 </div>
@@ -120,7 +84,7 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
                         return (
                             <tr>
                                 {/* if there is an offset, calculate the row address relative to the starting address. otherwise, calculate it as normal. */}
-                                <td>{(chunkedMemory()[0].length < MEMORY_ROW_SIZE ? (index * 16) + (startingAddress() % 16) - 16 : (index * 16)).toString(16).padStart(8, '0')}</td>
+                                <td>{(chunkedMemory()[0].length < MEMORY_ROW_SIZE ? (index * 16) + (offset() % 16) - 16 : (index * 16)).toString(16).padStart(8, '0')}</td>
                                 {row.map((item, i) => {
                                     return (
                                         <td id={`${index}-${i}`}>{item.toString(16).padStart(2, '0')}</td>

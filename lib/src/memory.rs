@@ -48,14 +48,14 @@ impl Default for FlagsPayload {
 #[derive(Clone, serde::Serialize)]
 pub struct RAMPayload {
     pub checksum: Checksum,
-    pub memory_array: Vec<Byte>
+    pub memory_array: Vec<Vec<Byte>>
 }
 
 impl Default for RAMPayload {
     fn default() -> Self {
         RAMPayload {
             checksum: 0,
-            memory_array: vec![0, 0],
+            memory_array: vec![vec![0; 0]; 0],
         }
     }
 }
@@ -373,7 +373,8 @@ pub struct RAM {
     pub endianness: Endianness,
     pub loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
     pub memory_array: Vec<Byte>, // unsigned Byte array
-    pub size: usize
+    pub size: usize,
+    pub display_offset: AddressSize // offset used when computing chunks for the frontend
 }
 
 impl RAM {
@@ -389,7 +390,8 @@ impl Memory for RAM {
             endianness,
             loaded: false,
             memory_array: vec![0; size],
-            size
+            size,
+            display_offset: 0
         }
     }
 
@@ -413,7 +415,8 @@ impl Default for RAM {
             endianness: Endianness::Big,
             loaded: false,
             memory_array: vec![0; DEFAULT_MEMORY_SIZE],
-            size: DEFAULT_MEMORY_SIZE
+            size: DEFAULT_MEMORY_SIZE,
+            display_offset: 0
         }
     }
 }

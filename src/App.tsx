@@ -1,4 +1,4 @@
-import { Component, Show } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { onMount, onCleanup } from 'solid-js';
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
@@ -6,7 +6,7 @@ import { open } from '@tauri-apps/api/dialog'
 import * as log from 'tauri-plugin-log-api'
 import hotkeys from 'hotkeys-js'
 
-import { setFilename, filename, loaded, setLoaded} from './state'
+import { setFilename, filename } from './state'
 
 import styles from './css/App.module.css';
 import MemoryPanel from './MemoryPanel';
@@ -18,6 +18,7 @@ import FlagsPanel from './FlagsPanel';
 import Toolbar from './Toolbar';
 
 const App: Component = () => {
+	const [loaded, setLoaded] = createSignal(false)
 	log.attachConsole();
 
 	// attach keybind event listeners

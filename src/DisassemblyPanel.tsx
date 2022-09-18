@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
 import hotkeys from "hotkeys-js";
-import { Accessor, Component, createSignal, indexArray } from "solid-js"
+import { Component, createSignal, onMount } from "solid-js"
+import * as log from 'tauri-plugin-log-api'
 
 const DisassemblyPanel: Component<IDisassemblyProp> = (prop: IDisassemblyProp) => {
     const [programCounter, setProgramCounter] = createSignal(0)
@@ -21,6 +22,14 @@ const DisassemblyPanel: Component<IDisassemblyProp> = (prop: IDisassemblyProp) =
         // middle element is current instruction (TODO: refactor)
         invoke('cmd_toggle_breakpoint', { address: instructions()[3][1] })
     }
+
+    onMount(async () => {
+        log.trace("SolidJS[DisassemblyPanel.onMount]: getting disassembly...")
+
+        const payload: IDisassemblyPayload = await invoke('cmd_get_disassembly')
+        setProgramCounter(payload.pc)
+        setInstructions(payload.instructions)
+    })
 
     return (
         <section>
