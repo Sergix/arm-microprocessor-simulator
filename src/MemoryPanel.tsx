@@ -1,4 +1,4 @@
-import { Component, createEffect, createMemo, createSignal, mergeProps, onMount } from "solid-js"
+import { Component, createEffect, createMemo, createSignal, mergeProps, onMount, Show } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
 import styles from './css/MemoryPanel.module.css'
@@ -9,6 +9,7 @@ const MEMORY_ROW_SIZE = 16;
 
 const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     const [checksum, setChecksum] = createSignal(0)
+    const [chunking, setChunking] = createSignal(false)
     const [chunkedMemory, setChunkedMemory] = createSignal(new Array<Array<number>>())
 
     // have them separate so that the visible state isn't updated as the user types
@@ -40,10 +41,15 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     const getChunkedMemory = async () => {
         log.trace(`SolidJS[MemoryPanel.getChunkedMemory]: rechunking of memory table with offset ${offset()}...`)
 
+        setChunking(true)
+        
         const payload: IRAMPayload = await invoke('cmd_set_offset', { offset: offset() });
         
-        setChecksum(payload.checksum)
+        setChunking(false)
+        
+        setChecksum(payload.checksum || checksum())
         setChunkedMemory(payload.memory_array)
+        
     }
     
     const scrollToStartingAddress = () => {
@@ -52,19 +58,22 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     }
 
     return (
-        <section class="h-96">
+        <section class="h-96 relative">
             <h3>Memory</h3>
             <div class="flex flex-row align-middle my-2 flex-wrap">
                 <p class="font-mono text-sm my-auto">Checksum: {checksum()}</p>
-                <div class="flex align-middle justify-start ml-4">
+                <form class="flex align-middle justify-start ml-4" onSubmit={(e) => e.preventDefault()}>
                     <input onInput={(e) => validateAndSetInputOffset(e.currentTarget.value)} type="text" id="starting_address" name="starting_address" placeholder="Address 0x..."/>
                     <button class="text-sm ml-2" onClick={(_) => {
                         setOffset(inputOffset())
                         getChunkedMemory()
                         scrollToStartingAddress()
                     }}>GO</button>
-                </div>
+                </form>
             </div>
+            <aside class="overlay" classList={{ ['invisible']: !chunking() }}>
+                Chunking...
+            </aside>
             <table class={styles.MemoryGrid} onScroll={() => {}}>
                 {chunkedMemory().map((row, index) => {
                     // if first row and chunked at an offset

@@ -70,3 +70,15 @@ button:hover {
 button:active {
   background-color: #282c94;
 }
+
+.overlay {
+  @apply bg-gray-700;
+  @apply text-white text-lg text-center;
+  @apply absolute left-0 right-0 top-0 m-auto;
+  @apply w-64;
+  @apply p-8;
+  @apply rounded-md;
+  transform: translateY(150%);
+  @apply shadow-lg;
+  @apply z-50;
+}

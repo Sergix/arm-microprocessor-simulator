@@ -101,7 +101,7 @@ pub async fn cmd_remove_breakpoint(address: AddressSize, cpu_state: CPUState<'_>
 
 #[tauri::command]
 pub async fn cmd_toggle_breakpoint(address: AddressSize, cpu_state: CPUState<'_>, app_handle: AppHandle) -> Result<(), ()> {
-    trace!("cmd_toggle_breakpoint: running CPU...");
+    trace!("cmd_toggle_breakpoint: toggling breakpoint {}...", address);
 
     // scoped block to ensure locks are dropped
     {

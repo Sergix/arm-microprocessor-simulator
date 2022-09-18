@@ -135,7 +135,7 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 - All tests in `/lib/src/memory.rs`:`Memory`
 
-## Week 3
+## Week 4
 
 ### 9-14-22
 
@@ -189,3 +189,12 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 - [Remove an item from an array in Rust](https://stackoverflow.com/a/26243276)
 - [Tauri Rust API mocking](https://github.com/tauri-apps/tauri/pull/4752)
+
+## Week 5
+
+### 9-18-22
+
+#### Progress [1hrs]
+
+- Breakpoints in disassembly window are now clickable to toggle
+- Overlay for memory panel to notify user that the table is still chunking memory
