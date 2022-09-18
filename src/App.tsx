@@ -6,9 +6,9 @@ import { open } from '@tauri-apps/api/dialog'
 import * as log from 'tauri-plugin-log-api'
 import hotkeys from 'hotkeys-js'
 
-import {setMemory, setChecksum, setFilename, filename, loaded, setLoaded} from './state'
+import { setFilename, filename, loaded, setLoaded} from './state'
 
-import styles from './App.module.css';
+import styles from './css/App.module.css';
 import MemoryPanel from './MemoryPanel';
 import RegisterPanel from './RegisterPanel';
 import StackPanel from './StackPanel';
@@ -30,7 +30,6 @@ const App: Component = () => {
 		log.trace("SolidJS[App]: loading ELF...")
 
 		setLoaded(payload.loaded)
-		setChecksum(payload.checksum)
 		setFilename(payload.filename)
 		
 		log.trace("SolidJS[App]: loaded ELF")
@@ -48,7 +47,6 @@ const App: Component = () => {
 			const payload: IELFPayload = await invoke('cmd_get_memory')
 
 			setLoaded(payload.loaded)
-			setChecksum(payload.checksum)
 			setFilename(payload.filename)
 
 			log.trace("SolidJS[App.onMount]: loaded elf")

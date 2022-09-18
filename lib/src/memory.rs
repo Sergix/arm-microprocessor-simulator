@@ -13,28 +13,6 @@ pub const NUM_REGISTERS: usize = 17; // r0...r15, 16 is CPSR
 pub const REGISTER_BYTES: usize = 4; // 4byte = 32bit
 pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as AddressSize;
 
-// payload for tauri event emitter to send to frontend
-// https://tauri.app/v1/guides/features/events/#global-events-1
-// TODO: move to elf.rs file
-#[derive(Clone, serde::Serialize)]
-pub struct ELFPayload {
-    pub checksum: Checksum,
-    pub loaded: bool,
-    pub error: String,
-    pub filename: String
-}
-
-impl Default for ELFPayload {
-    fn default() -> Self {
-        ELFPayload {
-            checksum: 0,
-            loaded: false,
-            error: String::from(""),
-            filename: String::from("")
-        }
-    }
-}
-
 #[derive(Clone, serde::Serialize)]
 pub struct RegistersPayload {
     pub register_array: Vec<Word>
@@ -69,12 +47,14 @@ impl Default for FlagsPayload {
 
 #[derive(Clone, serde::Serialize)]
 pub struct RAMPayload {
+    pub checksum: Checksum,
     pub memory_array: Vec<Byte>
 }
 
 impl Default for RAMPayload {
     fn default() -> Self {
         RAMPayload {
+            checksum: 0,
             memory_array: vec![0, 0],
         }
     }
@@ -282,7 +262,6 @@ pub struct Registers {
 }
 
 impl Registers {
-    // TODO: add test
     pub fn set_register(&mut self, index: usize, value: Word) {
         if index > 15 {
             panic!("Registers[set_register]: register index out of range");
@@ -291,7 +270,6 @@ impl Registers {
         self.write_word((index * 4) as AddressSize, value)
     }
 
-    // get a specified register as a word based on r#
     pub fn get_register(&mut self, index: usize) -> Word {
         if index > 15 {
             panic!("Registers[get_register]: register index out of range");
@@ -300,7 +278,6 @@ impl Registers {
         self.read_word((index * 4) as AddressSize)
     }
 
-    // TODO: add test
     pub fn get_all(&mut self) -> Vec<Word> {
         let mut regs: Vec<Word> = vec![0; 0];
         
@@ -311,24 +288,20 @@ impl Registers {
         regs
     }
 
-    // TODO: add test
     pub fn set_pc(&mut self, value: Word) {
         self.set_register(15, value)
     }
 
-    // TODO: add test
     pub fn get_pc(&mut self) -> Word {
         self.get_register(15)
     }
 
-    // TODO: add test
     pub fn inc_pc(&mut self) {
         let next_addr = self.get_pc() + 4;
         self.set_register(15, next_addr)
     }
 
     // CPSR register is last register
-    // TODO: test by setting a flag and manually reading
     pub fn get_cpsr(&mut self) -> Word {
         // have to manually read location since CPSR is not little- or big-endian
         self.read_word(CPSR_ADDR)
@@ -401,6 +374,12 @@ pub struct RAM {
     pub loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
     pub memory_array: Vec<Byte>, // unsigned Byte array
     pub size: usize
+}
+
+impl RAM {
+    pub fn get_checksum(&self) -> Checksum {
+        self.checksum
+    }
 }
 
 impl Memory for RAM {
@@ -724,10 +703,88 @@ mod tests {
     }
 
     #[test]
+    fn test_get_register() {
+        let mut regs = Registers::default();
+
+        regs.write_word(4, 0xAEBD056D);
+        assert_eq!(0xAEBD056D, regs.get_register(1));
+    }
+
+    #[test]
     #[should_panic]
-    fn test_get_as_word_range_error() {
+    fn test_get_register_range_error() {
         let mut regs = Registers::default();
 
         regs.get_register(16);
+    }
+
+    #[test]
+    fn test_set_register() {
+        let mut regs = Registers::default();
+        regs.set_register(1, 5);
+
+        assert_eq!(5, regs.read_word(4));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_set_register_range_error() {
+        let mut regs = Registers::default();
+        regs.set_register(16, 0);
+    }
+
+    #[test]
+    fn test_get_all() {
+        let mut regs = Registers::default();
+
+        regs.set_register(0, 0xAEB);
+        regs.set_register(1, 5);
+        regs.set_register(13, 0x11FF11FF);
+
+        let rs = regs.get_all();
+        assert_eq!(0xAEB, rs[0]);
+        assert_eq!(5, rs[1]);
+        assert_eq!(0x11FF11FF, rs[13]);
+    }
+
+    #[test]
+    fn test_set_pc() {
+        let mut regs = Registers::default();
+
+        regs.set_pc(0x106);
+        assert_eq!(0x106, regs.get_register(15));
+    }
+
+    #[test]
+    fn test_get_pc() {
+        let mut regs = Registers::default();
+
+        regs.set_register(15, 0x106);
+        assert_eq!(0x106, regs.get_pc());
+    }
+
+    #[test]
+    fn test_inc_pc() {
+        let mut regs = Registers::default();
+
+        regs.set_pc(0x106);
+        regs.inc_pc();
+        assert_eq!(0x10a, regs.get_pc());
+    }
+
+    #[test]
+    fn test_get_cpsr() {
+        let mut regs = Registers::default();
+
+        regs.write_word(64, 0xFF11FF11);
+        assert_eq!(0xFF11FF11, regs.get_cpsr());
+    }
+
+    #[test]
+    fn test_get_cpsr_control_byte() {
+        let mut regs = Registers::default();
+
+        regs.write_word(64, 0xAA000000);
+        assert_eq!(0xAA, regs.get_cpsr_control_byte());
     }
 }

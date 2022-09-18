@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api"
 import { filename } from "./state"
 import hotkeys from "hotkeys-js"
 
-import styles from './Toolbar.module.css'
+import styles from './css/Toolbar.module.css'
 
 const Toolbar: Component = () => {
     const [running, setRunning] = createSignal(false);

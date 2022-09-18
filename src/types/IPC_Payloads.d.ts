@@ -1,6 +1,6 @@
-// from backend memory.rs
+// from backend
+
 interface IELFPayload {
-	checksum: number
 	loaded: boolean
 	error: string
 	filename: string
@@ -11,6 +11,7 @@ interface IRegistersPayload {
 }
 
 interface IRAMPayload {
+	checksum: number
 	memory_array: Array<number>
 }
 

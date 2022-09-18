@@ -4,7 +4,8 @@
 */
 
 use lib::state::{ RAMState, RegistersState, OptionsState };
-use lib::memory::{self, Memory};
+use lib::memory::{ Memory };
+use lib::elf::{ ELFPayload }; 
 use log::trace;
 use log::error;
 use normpath::PathExt;
@@ -18,7 +19,7 @@ use tauri::{AppHandle, Manager};
 use crate::interface;
 
 #[tauri::command]
-pub async fn cmd_get_elf(memory_state: RAMState<'_>, options_state: OptionsState<'_>) -> Result<memory::ELFPayload, memory::ELFPayload> {
+pub async fn cmd_get_elf(memory_state: RAMState<'_>, options_state: OptionsState<'_>) -> Result<ELFPayload, ELFPayload> {
     trace!("cmd_get_memory: checking if ELF has been loaded...");
     
     let memory_lock = memory_state.lock().await;
@@ -26,24 +27,21 @@ pub async fn cmd_get_elf(memory_state: RAMState<'_>, options_state: OptionsState
     
     if memory_lock.loaded {
         trace!("cmd_get_memory: ELF has already been loaded. passing to frontend...");
-        return Ok(memory::ELFPayload {
-            checksum: memory_lock.checksum,
+        return Ok(ELFPayload {
             loaded: true,
             error: "".into(),
             filename: String::clone(&options_lock.elf_file)
         })
     } else {
         trace!("cmd_get_memory: ELF has not been loaded.");
-        return Err(memory::ELFPayload::default())
+        return Err(ELFPayload::default())
     }
 }
 
 #[tauri::command]
 pub async fn cmd_load_elf(filename: String, app_handle: AppHandle) -> Result<(), ()> {
     trace!("cmd_load_elf: attempting to load ELF binary: {}", filename);
-    
-    // load elf file, await
-    // automatically emits
+
     load_elf(filename.clone(), app_handle).await;
 
     Ok(())
@@ -52,11 +50,11 @@ pub async fn cmd_load_elf(filename: String, app_handle: AppHandle) -> Result<(),
 pub async fn load_elf(filename: String, app_handle: AppHandle) {
     let error: String = "".into();
 
-    // get global state from app handler
-    // https://discord.com/channels/616186924390023171/1012276284430229576/1012403646295707738
-    // https://github.com/tauri-apps/tauri/discussions/1336#discussioncomment-1936523
     // scope block to drop locks immediately
     {
+        // get global state from app handler
+        // https://discord.com/channels/616186924390023171/1012276284430229576/1012403646295707738
+        // https://github.com/tauri-apps/tauri/discussions/1336#discussioncomment-1936523
         let app_ram_state: RAMState = app_handle.state();
         let mut ram_lock = app_ram_state.lock().await;
 
@@ -143,14 +141,12 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         }
 
         // notify the frontend when an ELF binary is successfully loaded
-        app_handle.emit_all("elf_load", memory::ELFPayload {
-            checksum: ram_lock.checksum,
+        app_handle.emit_all("elf_load", ELFPayload {
             loaded: ram_lock.loaded,
             error: error.clone(),
             filename: String::clone(&path_str)
         }).unwrap();
     }
 
-    // TODO: move to crate::interface with global elf state object?
     interface::emit_payloads(app_handle.clone()).await;
 }

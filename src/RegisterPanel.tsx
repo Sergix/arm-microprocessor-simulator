@@ -3,8 +3,6 @@ import { listen } from "@tauri-apps/api/event"
 import { Accessor, Component, createEffect, createSignal, indexArray, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
-import styles from './Registers.module.css'
-
 const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
     const [registers, setRegisters] = createSignal(Array<number>())
 

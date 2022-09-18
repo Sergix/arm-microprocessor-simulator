@@ -3,7 +3,7 @@
 **Name:** Peyton McGinnis  
 **Course:** CpS 310  
 **Submission date:** 3 September 2022  
-**Hours spent this phase:** 20.65
+**Hours spent this phase:** 22.15
 
 ## Overview
 
@@ -70,7 +70,7 @@ To run the built-in development environment with hot module reloading (HMR), run
 
 To run the tests, run `cd lib` -> `cargo test`.
 
-Testing is implemented for the Memory trait and for some of the CPU. Some of the CPU is untestable as core logic because it's tightly integrated with the threading logic of the application.
+Testing is implemented for the Memory trait and for some of the CPU. Some of the CPU is untestable as core logic because it's tightly integrated with the threading model and state model of the internal API. [The Tauri project is currently pushing for mocking these models for testing in the next version.](https://github.com/tauri-apps/tauri/pull/4752)
 
 ## Configuration
 

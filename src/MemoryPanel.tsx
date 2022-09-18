@@ -1,8 +1,8 @@
 import { Component, createEffect, createMemo, createSignal, mergeProps, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
-import { memory, checksum, setMemory } from './state'
-import styles from './MemoryPanel.module.css'
+import { memory, checksum, setMemory, setChecksum } from './state'
+import styles from './css/MemoryPanel.module.css'
 import { listen } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api"
 
@@ -64,10 +64,12 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     onMount(async () => {
         log.trace('SolidJS[MemoryGrid.onMount]: updating global memory state...')
         const payload: IRAMPayload = await invoke('cmd_get_ram')
+        setChecksum(payload.checksum)
         setMemory(payload.memory_array)
     })
     listen('ram_update', ({ payload }: { payload: IRAMPayload }) => {
         log.trace('SolidJS[MemoryGrid.listen]: updating global memory state...')
+        setChecksum(payload.checksum)
         setMemory(payload.memory_array)
     })
 

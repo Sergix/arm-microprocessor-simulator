@@ -75,6 +75,7 @@ pub async fn emit_payloads (app_handle: AppHandle) {
             register_array: registers_lock.get_all()
         }).unwrap();
         app_handle.emit_all("ram_update", RAMPayload {
+            checksum: ram_lock.checksum,
             memory_array: ram_lock.memory_array.clone()
         }).unwrap();
         app_handle.emit_all("flags_update", FlagsPayload {

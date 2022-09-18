@@ -135,53 +135,56 @@ impl Default for CPU {
 
 #[cfg(test)]
 mod tests {
+    // TODO: mock tauri AppHandle, Manager => RAMState, CPUThreadState, and RegistersState
+
     use super::*;
     
     #[test]
     fn test_fetch() {
-        let cpu = CPU::default();
-        
+        // let mut cpu = CPU::default();
     }
 
     #[test]
     fn test_decode() {
-        let cpu = CPU::default();
-
+        // let cpu = CPU::default();
     }
 
     #[test]
     fn test_execute() {
-        let cpu = CPU::default();
-
-    }
-
-    #[test]
-    fn test_add_breakpoint() {
-        let cpu = CPU::default();
-
-    }
-
-    #[test]
-    fn test_is_breakpoint() {
-        let cpu = CPU::default();
-
-    }
-
-    #[test]
-    fn test_remove_breakpoint() {
-        let cpu = CPU::default();
-
+        // let cpu = CPU::default();
     }
 
     #[test]
     fn test_run() {
-        let cpu = CPU::default();
-
+        // let cpu = CPU::default();
     }
 
     #[test]
     fn test_step() {
-        let cpu = CPU::default();
+        // let cpu = CPU::default();
+    }
 
+    #[test]
+    fn test_add_breakpoint() {
+        let mut cpu = CPU::default();
+        cpu.add_breakpoint(1);
+        assert_eq!(1, cpu.breakpoints[0])
+    }
+
+    #[test]
+    fn test_is_breakpoint() {
+        let mut cpu = CPU::default();
+        cpu.breakpoints.push(1);
+        assert_eq!(true, cpu.is_breakpoint(&1))
+    }
+
+    #[test]
+    fn test_remove_breakpoint() {
+        let mut cpu = CPU::default();
+        cpu.breakpoints.push(1);
+        cpu.breakpoints.push(2);
+        cpu.breakpoints.push(3);
+        cpu.remove_breakpoint(2);
+        assert_eq!(false, cpu.is_breakpoint(&2))
     }
 }

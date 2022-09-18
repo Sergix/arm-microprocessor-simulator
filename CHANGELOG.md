@@ -177,13 +177,15 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 **Checkpoint Reached: Checkpoint 2: GUI**
 
-#### Progress [5hrs]
+#### Progress [6.5hrs]
 
 - Added disassembly panel and logic with mocked assembly instructions
 - Added breakpoint toggling
 - Added tests for CPU class
+- Tests for Registers class
 - Updated CHANGELOG and README
 
 #### Sources
 
 - [Remove an item from an array in Rust](https://stackoverflow.com/a/26243276)
+- [Tauri Rust API mocking](https://github.com/tauri-apps/tauri/pull/4752)

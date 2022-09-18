@@ -9,6 +9,7 @@ pub async fn cmd_get_ram(ram_state: RAMState<'_>) -> Result<RAMPayload, ()> {
     let mut ram_lock = ram_state.lock().await;
     
     Ok(RAMPayload {
+        checksum: ram_lock.get_checksum(),
         memory_array: ram_lock.get_memory_array().clone()
     })
 }
