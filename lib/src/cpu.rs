@@ -52,7 +52,15 @@ impl CPU {
     }
 
     pub fn decode(&self) {
-        // do nothing
+        // get instruction text from bits
+
+        // read bits 27-25, 7-4, 5-6
+        // map to type enum
+        // if swi
+            // create swi
+        // if data
+            // if load/store
+        //
     }
 
     pub fn execute(&self) {
