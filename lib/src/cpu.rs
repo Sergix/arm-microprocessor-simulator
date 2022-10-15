@@ -3,9 +3,10 @@ use std::{thread::{self}};
 
 use log::trace;
 use tauri::{AppHandle, Manager};
+use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState}};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState}, instruction::{TInstruction, Instruction, instr_data_reg_imm, instr_data_imm}, cpu_enum::InstrType};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -49,23 +50,44 @@ impl CPU {
     pub fn fetch(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>) -> Word {
         // return read word from RAM address specified by value of PC register
         ram_lock.read_word(registers_lock.get_pc())
+
+        // TODO: update pc
     }
 
-    pub fn decode(&self) {
-        // get instruction text from bits
+    #[bitmatch]
+    pub fn decode(&self, instr: Word) -> Instruction {
+        // get instruction data from bits
+        #[bitmatch]
+        match instr {
+            "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm" => instr_data_reg_imm(c, o, s, n, d, i, t, m),
+            "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii" => instr_data_imm(c, o, s, n, d, r, i),
+            "????????????????????????????????" => Instruction::new(InstrType::NOP)
+        }
+        // "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => (),
+        // "cccc_100_puwsl_nnnn_rrrrrrrrrrrrrrrr" => (),
+        // "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => (),
+        // "cccc_011_pubwl_nnnn_dddd_00000000_mmmm" => (),
+        // "cccc_011_pubwl_nnnn_dddd_ssssssssssss" => (),
+        // "cccc_010_pu1wl_nnnn_dddd_hhhh_1_ss_1_iiii" => (),
+        // "cccc_000_pu0wl_nnnn_dddd_0000_1_ss_1_mmmm" => (),
+        // "cccc_1111_ssssssssssssssssssssssss" => (),
+        // "cccc_000_0000_s_nnnn_0000_dddd_1001_mmmm" => ()
 
-        // read bits 27-25, 7-4, 5-6
-        // map to type enum
-        // if swi
-            // create swi
-        // if data
-            // if load/store
-        //
     }
 
-    pub fn execute(&self) {
+    pub fn execute(&self, instr: Instruction) {
+        // TODO: update return PC 
+
         // pause for 1/4 sec
         thread::sleep(time::Duration::from_millis(250))
+    }
+
+    pub fn writeback(&self) {
+
+    }
+
+    pub fn interrupt(&self) {
+        
     }
 
     pub fn add_breakpoint(&mut self, address: AddressSize) {
@@ -120,14 +142,14 @@ impl CPU {
             return true
         }
         
-        let instruction = self.fetch(ram_lock, registers_lock);
-        trace!("step: {}pc = {}", registers_lock.get_pc(), instruction);
+        let instr_raw: Word = self.fetch(ram_lock, registers_lock);
+        trace!("step: {}pc = {}", registers_lock.get_pc(), instr_raw);
 
         // halt when instruction is HLT
-        if instruction == 0 { self.stop(app_handle.clone()).await; return true }
+        if instr_raw == 0 { self.stop(app_handle.clone()).await; return true }
 
-        self.decode();
-        self.execute();
+        let instr: Instruction = self.decode(instr_raw);
+        self.execute(instr);
 
         return false;
     }
@@ -145,6 +167,8 @@ impl Default for CPU {
 mod tests {
     // TODO: mock tauri AppHandle, Manager => RAMState, CPUThreadState, and RegistersState
 
+    use crate::{cpu_enum::DataOpcode, memory::Register};
+
     use super::*;
     
     #[test]
@@ -154,7 +178,14 @@ mod tests {
 
     #[test]
     fn test_decode() {
-        // let cpu = CPU::default();
+        let cpu = CPU::default();
+        let instr = cpu.decode(0xe3a02030);
+        assert_eq!(instr.get_type(), InstrType::DataImm);
+        assert_eq!(instr.get_data_opcode().unwrap(), DataOpcode::MOV);
+        assert!(!instr.get_s_bit().unwrap());
+        assert_eq!(instr.get_rn().unwrap(), Register::r0);
+        assert_eq!(instr.get_rd().unwrap(), Register::r2);
+        assert_eq!(instr.get_imm().unwrap(), 48);
     }
 
     #[test]

@@ -1,4 +1,7 @@
+use core::fmt;
+
 use log::error;
+use num_derive::FromPrimitive;
 use object::Endianness;
 
 pub type Byte = u8;
@@ -12,6 +15,33 @@ pub const DEFAULT_MEMORY_SIZE: usize = 32768;
 pub const NUM_REGISTERS: usize = 17; // r0...r15, 16 is CPSR
 pub const REGISTER_BYTES: usize = 4; // 4byte = 32bit
 pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as AddressSize;
+
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
+pub enum Register {
+    r0 = 0,
+    r1 = 1,
+    r2 = 2,
+    r3 = 3,
+    r4 = 4,
+    r5 = 5,
+    r6 = 6,
+    r7 = 7,
+    r8 = 8,
+    r9 = 9,
+    r10 = 10,
+    r11 = 11,
+    r12 = 12,
+    r13 = 13,
+    r14 = 14,
+    r15 = 15
+}
+
+impl fmt::Display for Register {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[derive(Clone, serde::Serialize)]
 pub struct RegistersPayload {
