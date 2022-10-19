@@ -1,17 +1,25 @@
-use crate::memory::{Byte, AddressSize, Word, Register, HalfWord};
+use std::fmt;
+use std::future::Future;
+
+use tauri::AppHandle;
+use tokio::sync::MutexGuard;
+
+use crate::cpu::CPU;
+use crate::execute;
+use crate::memory::{Byte, AddressSize, Word, Register, HalfWord, RAM, Registers};
 use crate::cpu_enum::{Condition, ShiftType, DataOpcode, LSMCode, AddressingMode, LSH, InstrType};
 
-/*
-Supertype structs
-*/
+// This is the parent trait that contains all the default implementations
+// for each instruction; all the getters and setters are implemented directly
+// for the Instruction struct 
 pub trait TInstruction {
     fn new(_type: InstrType) -> Self;
 
     fn decode(&self);
     fn encode(&self);
 
-    // fn set_execute();
-    fn execute(&self);
+    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word);
+    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word;
 
     fn get_name(&self) -> String;
     // fn get_instr(&self) -> Word;
@@ -31,7 +39,7 @@ pub trait TInstruction {
     fn get_imm_shift(&self) -> Option<Byte>;
     fn set_imm_shift(&mut self, imm: Word);
 
-    fn get_imm(&self) -> Option<Byte>;
+    fn get_imm(&self) -> Option<Word>;
     fn set_imm(&mut self, rotate: Word, imm: Word);
 
     // TODO:
@@ -48,35 +56,6 @@ pub trait TInstruction {
     // shift value in immediate_shift field by shift amount
     fn shift_value(&mut self, shift_amount: Byte, shift_type: ShiftType);
 
-    // output instruction string (bytes -> assembly macros)
-    fn disassemble(&self) -> String {
-        // let opcode_str: Option<String>;
-        // let s_bit: Option<String>;
-        // let rn_str: Option<String>;
-        // let rd_str: Option<String>;
-        // let imm_str: Option<String>;
-
-        // match self.get_type() {
-        //     InstrType::DataImm => {
-        //         match self.get_data_opcode().unwrap() {
-        //             DataOpcode::MOV => opcode_str = Some(String::from("mov")),
-        //         };
-
-        //         match self.get_s_bit().unwrap() {
-        //             true => s_bit = Some(String::from("S")),
-        //             false => s_bit = None
-        //         }
-
-        //         rd_str = Some(self.get_rd().unwrap().to_string());
-        //         // imm_str = Some(self.get_imm())
-        //     },
-        //     _ => {}
-        // };
-
-        // format!("{} {}, #{}", opcode_str.unwrap(), rd_str.unwrap(), imm_str.unwrap())
-        String::new()
-    }
-
     fn get_rd(&self) -> Option<Register>;
     fn set_rd(&mut self, rd: Word);
     fn get_rn(&self) -> Option<Register>;
@@ -89,10 +68,15 @@ pub trait TInstruction {
     fn get_condition(&self) -> Condition;
 }
 
+// the Instruction struct will hold flags for all possible Instruction types
+// to simplify how instructions are passed around the CPU; it increases the size
+// of the Instruction struct, but most of the data in the struct are just
+// Options with minimal data
+
 #[derive(Clone, Copy)]
 pub struct Instruction {
     _type: InstrType,
-    // instr: Word,
+    execute: Option<fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word>,
     rn: Option<Register>,
     rd: Option<Register>,
     rm: Option<Register>,
@@ -101,14 +85,14 @@ pub struct Instruction {
     s_bit: Option<bool>,
     shift_type: Option<ShiftType>,
     imm_shift: Option<Byte>,
-    imm: Option<Byte>
+    imm: Option<Word>
 }
 
 impl TInstruction for Instruction {
     fn new(_type: InstrType) -> Self {
         Instruction {
             _type: _type,
-            // instr: instr,
+            execute: None,
             rn: None,
             rd: None,
             rm: None,
@@ -129,10 +113,6 @@ impl TInstruction for Instruction {
         self._type = _type;
     }
 
-    // fn get_instr(&self) -> Word {
-    //     self.instr
-    // }
-
     fn decode(&self) {
         todo!()
     }
@@ -140,21 +120,18 @@ impl TInstruction for Instruction {
     fn encode(&self) {
         todo!()
     }
-
-    fn execute(&self) {
-        todo!()
-    }
-
+    
     fn get_name(&self) -> String {
         todo!()
     }
 
     fn shift_value(&mut self, shift_amount: Byte, shift_type: ShiftType) {
-        todo!()
-    }
-
-    fn disassemble(&self) -> String {
-        todo!()
+        let value = match shift_type {
+            ShiftType::LSL => todo!(),
+            ShiftType::LSR => todo!(),
+            ShiftType::ASR => todo!(),
+            ShiftType::ROR => todo!(),
+        };
     }
 
     fn get_rd(&self) -> Option<Register> {
@@ -231,15 +208,57 @@ impl TInstruction for Instruction {
         self.imm_shift = Some((imm & 0xff) as Byte);
     }
 
-    fn get_imm(&self) -> Option<Byte> {
+    fn get_imm(&self) -> Option<Word> {
         self.imm
     }
 
     fn set_imm(&mut self, rotate: Word, imm: Word) {
-        let immediate_to_rotate: Byte = (imm & 0xff) as Byte;
-        // TODO: rotate
-        // let rotate_amount = ((rotate as Byte) * 2) as HalfWord;
-        self.imm = Some(immediate_to_rotate);
+        let immediate_to_rotate: Word = (imm & 0xff) as Word;
+        let rotate_amount = ((rotate as Byte) * 2) as Word;
+        self.imm = Some(immediate_to_rotate.rotate_right(rotate_amount));
+    }
+
+    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word) {
+        self.execute = Some(f);
+    }
+
+    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word {
+        self.execute.unwrap()
+    }
+}
+
+// formatted output for the instructions
+// used for disassembly
+impl fmt::Display for Instruction {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self.get_type() {
+            InstrType::DataImm => {
+
+                // for each instruction, produce the opcode
+                // and all information associated with it
+                // through specific matches that write directly
+                // to the output stream
+
+                match self.get_data_opcode().unwrap() {
+                    DataOpcode::MOV => fmt.write_str("mov")?,
+                    _ => fmt.write_str("nop")?
+                };
+
+                match self.get_s_bit().unwrap() {
+                    true => fmt.write_str("s")?,
+                    false => ()
+                }
+
+                fmt.write_str(" ")?;
+                fmt.write_str(self.get_rd().unwrap().to_string().as_str())?;
+                fmt.write_str(", #")?;
+                fmt.write_str(self.get_imm().unwrap_or(0).to_string().as_str())?;
+            },
+            // TODO: all other types
+            _ => {}
+        };
+
+        Ok(())
     }
 }
 
@@ -253,50 +272,12 @@ pub trait TTypeData: TInstruction {
     fn get_shift_type(&self) -> ShiftType;
 }
 
-pub struct TypeData {
-
-}
-
-// impl TTypeData for TypeData {
-
-// }
-
-pub trait TypeBranch: TInstruction {
-    fn get_l_bit() -> bool;
-    fn get_offset() -> Word; // (3 bytes)
-}
-
-pub trait TypeLSM: TInstruction {
-    fn get_lsm_code() -> LSMCode;
-    fn get_writeback() -> bool;
-    fn get_ldr_str() -> bool; // is load (1) or store (0)
-    fn get_s_bit() -> bool;
-    fn get_reg_list() -> Vec<Register>;
-}
-pub trait TypeLDRSTR: TInstruction {
-    fn get_addressing_mode() -> AddressingMode;
-    fn get_add_sub() -> bool; // add (1) or sub (0)
-    fn get_byte_word() -> bool; // byte (1) or word (0)
-    fn get_ldr_str() -> bool; // load (1) or store (0)
-    fn get_shift_type() -> ShiftType;
-    fn store_constant(&self, constant: Word) -> AddressSize; // stores constant in constant pool, returns address of stored const
-}
-
-pub trait TypeLDRHSTRH: TypeLDRSTR {
-    fn get_lsh() -> LSH;
-}
-
-pub trait TypeSWI: TInstruction {
-    fn get_swi() -> Word; // (3 bytes)
-}
-
-pub trait TypeMultiply: TInstruction {
-    fn get_s_bit() -> bool;
-}
-
 /*
 Individual instruction factories
 yay java
+
+Each factory takes the bit patterns from the bitmatcher in the CPU decode step
+and produces an Instruction struct with all the necessary methods attached
 */
 
 pub fn instr_data_reg_imm(condition: Word, opcode: Word, s_bit: Word, rn: Word, rd: Word, imm: Word, shift_type: Word, rm: Word) -> Instruction {
@@ -322,5 +303,19 @@ pub fn instr_data_imm(condition: Word, opcode: Word, s_bit: Word, rn: Word, rd: 
     instr.set_rd(rd);
     instr.set_imm(rotate, imm);
 
+    // attach the appopriate execute function (could also be done inline)
+    instr.set_execute(execute::instr_data_imm);
+
     instr
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_disassemble() {
+        let instr = instr_data_imm(0b1110, 0b1101, 0b0, 0b0000, 0b0010, 0b0000, 0b110000);
+        assert_eq!("mov r2, #48", instr.to_string())
+    }
 }

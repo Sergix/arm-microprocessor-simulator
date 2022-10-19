@@ -300,6 +300,10 @@ impl Registers {
         self.write_word((index * 4) as AddressSize, value)
     }
 
+    pub fn set_reg_register(&mut self, reg: Register, value: Word) {
+        self.write_word(((reg as u16) * 4) as AddressSize, value)
+    }
+
     pub fn get_register(&mut self, index: usize) -> Word {
         if index > 15 {
             panic!("Registers[get_register]: register index out of range");

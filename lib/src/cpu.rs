@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState}, instruction::{TInstruction, Instruction, instr_data_reg_imm, instr_data_imm}, cpu_enum::InstrType};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState, CPUState}, instruction::{TInstruction, Instruction, instr_data_reg_imm, instr_data_imm}, cpu_enum::InstrType};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -50,44 +50,48 @@ impl CPU {
     pub fn fetch(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>) -> Word {
         // return read word from RAM address specified by value of PC register
         ram_lock.read_word(registers_lock.get_pc())
-
-        // TODO: update pc
     }
 
     #[bitmatch]
     pub fn decode(&self, instr: Word) -> Instruction {
         // get instruction data from bits
+        // the bitmatcher matches a bit pattern to a specific instruction factory
         #[bitmatch]
         match instr {
             "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm" => instr_data_reg_imm(c, o, s, n, d, i, t, m),
             "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii" => instr_data_imm(c, o, s, n, d, r, i),
+            // TODO: add methods
+            // "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => (),
+            // "cccc_100_puwsl_nnnn_rrrrrrrrrrrrrrrr" => (),
+            // "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => (),
+            // "cccc_011_pubwl_nnnn_dddd_00000000_mmmm" => (),
+            // "cccc_011_pubwl_nnnn_dddd_ssssssssssss" => (),
+            // "cccc_010_pu1wl_nnnn_dddd_hhhh_1_ss_1_iiii" => (),
+            // "cccc_000_pu0wl_nnnn_dddd_0000_1_ss_1_mmmm" => (),
+            // "cccc_1111_ssssssssssssssssssssssss" => (),
+            // "cccc_000_0000_s_nnnn_0000_dddd_1001_mmmm" => ()
             "????????????????????????????????" => Instruction::new(InstrType::NOP)
         }
-        // "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => (),
-        // "cccc_100_puwsl_nnnn_rrrrrrrrrrrrrrrr" => (),
-        // "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => (),
-        // "cccc_011_pubwl_nnnn_dddd_00000000_mmmm" => (),
-        // "cccc_011_pubwl_nnnn_dddd_ssssssssssss" => (),
-        // "cccc_010_pu1wl_nnnn_dddd_hhhh_1_ss_1_iiii" => (),
-        // "cccc_000_pu0wl_nnnn_dddd_0000_1_ss_1_mmmm" => (),
-        // "cccc_1111_ssssssssssssssssssssssss" => (),
-        // "cccc_000_0000_s_nnnn_0000_dddd_1001_mmmm" => ()
-
     }
 
-    pub fn execute(&self, instr: Instruction) {
-        // TODO: update return PC 
+    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, cpu_lock: &mut MutexGuard<'_, CPU>, instr: Instruction) {
+        // grab the execute method for the specific instruction and pass the state objects
+        instr.get_execute()(ram_lock, registers_lock, cpu_lock, instr);
 
-        // pause for 1/4 sec
-        thread::sleep(time::Duration::from_millis(250))
+        // TODO: update PC
+    }
+
+    pub fn memory(&self) {
+        todo!();
     }
 
     pub fn writeback(&self) {
-
+        todo!();
     }
 
+    // will be called by SWI instruction
     pub fn interrupt(&self) {
-        
+        todo!();
     }
 
     pub fn add_breakpoint(&mut self, address: AddressSize) {
@@ -120,6 +124,9 @@ impl CPU {
 
             // stop when HLT instruction or breakpoint is reached
             if self.step(app_handle.clone()).await { break }
+
+            // pause for 1/4 sec
+            thread::sleep(time::Duration::from_millis(250));
         }
 
         trace!("run: cpu stopped");
@@ -127,29 +134,39 @@ impl CPU {
 
     // returns true if HLT
     pub async fn step(&mut self, app_handle: AppHandle) -> bool {
+        let mut instr_raw: Word = 0;
         let ram_state: RAMState = app_handle.state();
         let registers_state: RegistersState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
         let registers_lock = &mut registers_state.lock().await;
+        let cpu_state: CPUState = app_handle.state();
+        let cpu_lock = &mut cpu_state.lock().await;
+        {
 
-        // increment program counter
-        registers_lock.inc_pc();
+            // increment program counter
+            registers_lock.inc_pc();
 
-        // stop when pc hits breakpoint address
-        if self.is_breakpoint(&registers_lock.get_pc()) { 
-            trace!("step: hit breakpoint");
-            self.stop(app_handle.clone()).await;
-            return true
-        }
+            // stop when pc hits breakpoint address
+            if self.is_breakpoint(&registers_lock.get_pc()) { 
+                trace!("step: hit breakpoint");
+                self.stop(app_handle.clone()).await;
+                return true
+            }
         
-        let instr_raw: Word = self.fetch(ram_lock, registers_lock);
-        trace!("step: {}pc = {}", registers_lock.get_pc(), instr_raw);
+            instr_raw = self.fetch(ram_lock, registers_lock);
+            trace!("step: {}pc = {}", registers_lock.get_pc(), instr_raw);
+        }
 
         // halt when instruction is HLT
         if instr_raw == 0 { self.stop(app_handle.clone()).await; return true }
 
+        // get the instruction struct from the raw Word
         let instr: Instruction = self.decode(instr_raw);
-        self.execute(instr);
+
+        // pass the necessary state objects and instruction struct
+        // state guards need to be passed so that the execute method can properly access/modify
+        // the application state
+        self.execute(ram_lock, registers_lock, cpu_lock, instr);
 
         return false;
     }

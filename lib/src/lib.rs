@@ -5,3 +5,4 @@ pub mod state;
 pub mod elf;
 pub mod instruction;
 pub mod cpu_enum;
+pub mod execute;

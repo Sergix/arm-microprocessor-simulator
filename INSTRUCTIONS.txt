@@ -1,0 +1,22 @@
+Type (TType)x	
+-> TypeData
+   rr. _type
+ + Instruction (TInstruction)
+=> InstrDataRegImmShift
+   rr. _instr
+   rr. _type_data
+   
+For example, to get Rm from a InstrDataImmShift (assuming op is the instruction struct instance)
+   op._type_data.get_type().get_rm()
+   
+   
+Using bitmatch in the CPU decode step means that the following are determined in the lowest-level instruction struct:
+	1. Opcode
+	2. Type
+	3. 
+	
+1. Caller expects Instruction type.
+2. Have Instruction struct have an enum field referring to the instruction type.
+3. On the execute step, match the instruction type to a first-class function that receives the Instruction.
+  -> Functions get_rm, get_rn, store_constant, get_LSM_code, etc. are
+     first-class rather than as objects.
