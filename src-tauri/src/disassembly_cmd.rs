@@ -12,24 +12,6 @@ pub struct DisassemblyPayload {
 }
 
 pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPayload {
-    // TODO: remove in later phases
-    const MOCKED_ASM: [&str; 14] = [
-        "push	{fp, lr}",
-        "add	fp, sp, #4",
-        "sub	sp, sp, #8",
-        "mov	r3, #10",
-        "str	r3, [fp, #-8]",
-        "mov	r3, #0",
-        "str	r3, [fp, #-12]",
-        "bne	174 <mystart+0x3c>",
-        "ldr	r2, [fp, #-12]",
-        "ldr	r3, [fp, #-8]",
-        "add	r3, r2, r3",
-        "str	r3, [fp, #-12]",
-        "ldr	r3, [fp, #-8]",
-        "sub	r3, r3, #1"
-    ];
-
     trace!("emit_dissassembly_payload: attempting to lock state...");
 
     let cpu_state: CPUState = app_handle.state();
@@ -47,9 +29,11 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
     let pc = registers_lock.get_pc();
     let mut address = pc - 12;
     loop {
-        let r_str = MOCKED_ASM.get(((pc + address) as usize) % MOCKED_ASM.len()).unwrap().to_string();
+        let instr_raw = ram_lock.read_word(address);
+        let instr_str = cpu_lock.decode(instr_raw).to_string();
         let breakpoint_set = cpu_lock.is_breakpoint(&address);
-        disassembly_instructions.push((breakpoint_set, address, ram_lock.read_word(address), r_str));
+        disassembly_instructions.push((breakpoint_set, address, instr_raw, instr_str));
+        
         address += 4; // word is 4 bytes
         if address > pc + 12 { break }
     }

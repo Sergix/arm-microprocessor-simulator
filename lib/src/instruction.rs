@@ -1,13 +1,10 @@
 use std::fmt;
-use std::future::Future;
 
-use tauri::AppHandle;
 use tokio::sync::MutexGuard;
 
-use crate::cpu::CPU;
 use crate::execute;
-use crate::memory::{Byte, AddressSize, Word, Register, HalfWord, RAM, Registers};
-use crate::cpu_enum::{Condition, ShiftType, DataOpcode, LSMCode, AddressingMode, LSH, InstrType};
+use crate::memory::{Byte, Word, Register, RAM, Registers};
+use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType};
 
 // This is the parent trait that contains all the default implementations
 // for each instruction; all the getters and setters are implemented directly
@@ -18,8 +15,8 @@ pub trait TInstruction {
     fn decode(&self);
     fn encode(&self);
 
-    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word);
-    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word;
+    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word);
+    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word;
 
     fn get_name(&self) -> String;
     // fn get_instr(&self) -> Word;
@@ -54,7 +51,7 @@ pub trait TInstruction {
     // - store constant
 
     // shift value in immediate_shift field by shift amount
-    fn shift_value(&mut self, shift_amount: Byte, shift_type: ShiftType);
+    fn shift_value(value: Word, shift_amount: Byte, shift_type: ShiftType) -> Word;
 
     fn get_rd(&self) -> Option<Register>;
     fn set_rd(&mut self, rd: Word);
@@ -76,7 +73,7 @@ pub trait TInstruction {
 #[derive(Clone, Copy)]
 pub struct Instruction {
     _type: InstrType,
-    execute: Option<fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word>,
+    execute: Option<fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word>,
     rn: Option<Register>,
     rd: Option<Register>,
     rm: Option<Register>,
@@ -125,13 +122,14 @@ impl TInstruction for Instruction {
         todo!()
     }
 
-    fn shift_value(&mut self, shift_amount: Byte, shift_type: ShiftType) {
-        let value = match shift_type {
+    fn shift_value(value: Word, shift_amount: Byte, shift_type: ShiftType) -> Word {
+        match shift_type {
             ShiftType::LSL => todo!(),
             ShiftType::LSR => todo!(),
             ShiftType::ASR => todo!(),
             ShiftType::ROR => todo!(),
         };
+        0
     }
 
     fn get_rd(&self) -> Option<Register> {
@@ -218,12 +216,47 @@ impl TInstruction for Instruction {
         self.imm = Some(immediate_to_rotate.rotate_right(rotate_amount));
     }
 
-    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word) {
+    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word) {
         self.execute = Some(f);
     }
 
-    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, &mut MutexGuard<'_, CPU>, Instruction) -> Word {
+    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word {
         self.execute.unwrap()
+    }
+}
+
+fn get_data_opcode_str(opcode: DataOpcode) -> String {
+    match opcode {
+        DataOpcode::MOV => "mov".to_string(),
+        DataOpcode::AND => "and".to_string(),
+        DataOpcode::EOR => "eor".to_string(),
+        DataOpcode::SUB => "sub".to_string(),
+        DataOpcode::RSB => "rsb".to_string(),
+        DataOpcode::ADD => "add".to_string(),
+        DataOpcode::ADC => "adc".to_string(),
+        DataOpcode::SBC => "sbc".to_string(),
+        DataOpcode::RSC => "rsc".to_string(),
+        DataOpcode::TST => "tst".to_string(),
+        DataOpcode::TEQ => "teq".to_string(),
+        DataOpcode::CMP => "cmp".to_string(),
+        DataOpcode::CMN => "cmn".to_string(),
+        DataOpcode::ORR => "orr".to_string(),
+        DataOpcode::BIC => "bic".to_string(),
+        DataOpcode::MVN => "mvn".to_string(),
+    }
+}
+
+fn get_s_bit_str(s_bit: bool) -> String {
+    match s_bit {
+        true => "s".to_string(),
+        false => "".to_string()
+    }
+}
+
+fn get_condition_str(condition: Condition) -> String {
+    match condition {
+        Condition::AL => "".to_string(),
+        _ => condition.to_string()
     }
 }
 
@@ -233,29 +266,54 @@ impl fmt::Display for Instruction {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.get_type() {
             InstrType::DataImm => {
+                // mov rd, #imm8
+                // TODO: optional operand2?
 
                 // for each instruction, produce the opcode
                 // and all information associated with it
-                // through specific matches that write directly
-                // to the output stream
-
-                match self.get_data_opcode().unwrap() {
-                    DataOpcode::MOV => fmt.write_str("mov")?,
-                    _ => fmt.write_str("nop")?
-                };
-
-                match self.get_s_bit().unwrap() {
-                    true => fmt.write_str("s")?,
-                    false => ()
-                }
-
-                fmt.write_str(" ")?;
-                fmt.write_str(self.get_rd().unwrap().to_string().as_str())?;
-                fmt.write_str(", #")?;
-                fmt.write_str(self.get_imm().unwrap_or(0).to_string().as_str())?;
+                fmt.write_str(
+                    format!(
+                        "{}{}{} {}, #{}",
+                        get_data_opcode_str(self.get_data_opcode().unwrap()),
+                        get_condition_str(self.get_condition()),
+                        get_s_bit_str(self.get_s_bit().unwrap()),
+                        self.get_rd().unwrap().to_string(),
+                        self.get_imm().unwrap_or(0).to_string()
+                    ).as_str()
+                )?;
             },
-            // TODO: all other types
-            _ => {}
+            InstrType::DataRegImm => {
+                // mov rd, rm, sh #imm5
+                // TODO: optional Operand2
+
+                fmt.write_str(
+                    format!(
+                        "{}{}{} {}, {}, {} #{}",
+                        get_data_opcode_str(self.get_data_opcode().unwrap()),
+                        get_condition_str(self.get_condition()),
+                        get_s_bit_str(self.get_s_bit().unwrap()),
+                        self.get_rd().unwrap().to_string(),
+                        self.get_rm().unwrap().to_string(),
+                        self.get_shift_type().unwrap().to_string(),
+                        self.get_imm_shift().unwrap().to_string()
+
+                    ).as_str()
+                )?;
+                
+            },
+            // TODO:
+            // InstrType::DataRegReg => todo!(),
+            // InstrType::LDRSTRShiftReg => todo!(),
+            // InstrType::LDRSTRReg => todo!(),
+            // InstrType::LDRSTRImm => todo!(),
+            // InstrType::LDRHSTRHImm => todo!(),
+            // InstrType::LDRHSTRHReg => todo!(),
+            // InstrType::LSM => todo!(),
+            // InstrType::Branch => todo!(),
+            // InstrType::SWI => todo!(),
+            // InstrType::Multiply => todo!(),
+            // InstrType::NOP => todo!()
+            _ => ()
         };
 
         Ok(())
@@ -291,6 +349,8 @@ pub fn instr_data_reg_imm(condition: Word, opcode: Word, s_bit: Word, rn: Word, 
     instr.set_shift_type(shift_type);
     instr.set_rm(rm);
 
+    instr.set_execute(execute::instr_data_reg_imm);
+
     instr
 }
 
@@ -308,6 +368,8 @@ pub fn instr_data_imm(condition: Word, opcode: Word, s_bit: Word, rn: Word, rd: 
 
     instr
 }
+
+
 
 #[cfg(test)]
 mod tests {

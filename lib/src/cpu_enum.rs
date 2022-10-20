@@ -1,3 +1,5 @@
+use std::fmt;
+
 use num_derive::FromPrimitive;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -24,6 +26,12 @@ pub enum ShiftType {
     ASR = 2,
     ROR = 3,
     // RRX = 3
+}
+
+impl fmt::Display for ShiftType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
@@ -88,4 +96,10 @@ pub enum Condition {
     GT = 12,
     LE = 13,
     AL = 14
+}
+
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }

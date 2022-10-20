@@ -23,3 +23,7 @@ This results in complexity when calling core logic from Tauri logic: when should
 ## Thread Locking
 
 Thread locks should be dropped as quickly as possible within its context, especially before calling core logic. Explicitly scoped blocks always guarantee a lock will be dropped as soon as the block's scope ends.
+
+## Instruction Decoding
+
+Instruction decoding uses one primary `Instruction` class since structs cannot be inherited.

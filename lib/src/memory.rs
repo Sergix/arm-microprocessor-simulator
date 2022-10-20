@@ -301,7 +301,7 @@ impl Registers {
     }
 
     pub fn set_reg_register(&mut self, reg: Register, value: Word) {
-        self.write_word(((reg as u16) * 4) as AddressSize, value)
+        self.set_register(reg as usize, value)
     }
 
     pub fn get_register(&mut self, index: usize) -> Word {
@@ -310,6 +310,10 @@ impl Registers {
         }
 
         self.read_word((index * 4) as AddressSize)
+    }
+
+    pub fn get_reg_register(&mut self, reg: Register) -> Word {
+        self.get_register(reg as usize)
     }
 
     pub fn get_all(&mut self) -> Vec<Word> {
@@ -349,20 +353,43 @@ impl Registers {
         self.test_flag(CPSR_ADDR, bit)
     }
 
+    pub fn clear_nzcv(&mut self) {
+        self.set_flag(CPSR_ADDR, 31, false);
+        self.set_flag(CPSR_ADDR, 30, false);
+        self.set_flag(CPSR_ADDR, 29, false);
+        self.set_flag(CPSR_ADDR, 28, false);
+    }
+
     pub fn get_n_flag(&mut self) -> bool {
         self.test_flag(CPSR_ADDR, 31)
+    }
+
+    pub fn set_n_flag(&mut self, flag: bool) {
+        self.set_flag(CPSR_ADDR, 31, flag);
     }
 
     pub fn get_z_flag(&mut self) -> bool {
         self.test_flag(CPSR_ADDR, 30)
     }
 
+    pub fn set_z_flag(&mut self, flag: bool) {
+        self.set_flag(CPSR_ADDR, 30, flag);
+    }
+
     pub fn get_c_flag(&mut self) -> bool {
         self.test_flag(CPSR_ADDR, 29)
     }
 
+    pub fn set_c_flag(&mut self, flag: bool) {
+        self.set_flag(CPSR_ADDR, 29, flag);
+    }
+
     pub fn get_v_flag(&mut self) -> bool {
         self.test_flag(CPSR_ADDR, 28)
+    }
+
+    pub fn set_v_flag(&mut self, flag: bool) {
+        self.set_flag(CPSR_ADDR, 28, flag);
     }
 
     pub fn get_cpsr_control_byte(&mut self) -> Byte {

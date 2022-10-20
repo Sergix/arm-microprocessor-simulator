@@ -59,9 +59,9 @@ impl CPU {
         #[bitmatch]
         match instr {
             "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm" => instr_data_reg_imm(c, o, s, n, d, i, t, m),
+            // "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => (),
             "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii" => instr_data_imm(c, o, s, n, d, r, i),
             // TODO: add methods
-            // "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => (),
             // "cccc_100_puwsl_nnnn_rrrrrrrrrrrrrrrr" => (),
             // "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => (),
             // "cccc_011_pubwl_nnnn_dddd_00000000_mmmm" => (),
@@ -74,19 +74,13 @@ impl CPU {
         }
     }
 
-    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, cpu_lock: &mut MutexGuard<'_, CPU>, instr: Instruction) {
+    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) {
+        // TODO: check conditions
+
         // grab the execute method for the specific instruction and pass the state objects
-        instr.get_execute()(ram_lock, registers_lock, cpu_lock, instr);
+        instr.get_execute()(ram_lock, registers_lock, instr);
 
         // TODO: update PC
-    }
-
-    pub fn memory(&self) {
-        todo!();
-    }
-
-    pub fn writeback(&self) {
-        todo!();
     }
 
     // will be called by SWI instruction
@@ -134,28 +128,23 @@ impl CPU {
 
     // returns true if HLT
     pub async fn step(&mut self, app_handle: AppHandle) -> bool {
-        let mut instr_raw: Word = 0;
         let ram_state: RAMState = app_handle.state();
         let registers_state: RegistersState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
         let registers_lock = &mut registers_state.lock().await;
-        let cpu_state: CPUState = app_handle.state();
-        let cpu_lock = &mut cpu_state.lock().await;
-        {
 
-            // increment program counter
-            registers_lock.inc_pc();
+        // increment program counter
+        registers_lock.inc_pc();
 
-            // stop when pc hits breakpoint address
-            if self.is_breakpoint(&registers_lock.get_pc()) { 
-                trace!("step: hit breakpoint");
-                self.stop(app_handle.clone()).await;
-                return true
-            }
-        
-            instr_raw = self.fetch(ram_lock, registers_lock);
-            trace!("step: {}pc = {}", registers_lock.get_pc(), instr_raw);
+        // stop when pc hits breakpoint address
+        if self.is_breakpoint(&registers_lock.get_pc()) { 
+            trace!("step: hit breakpoint");
+            self.stop(app_handle.clone()).await;
+            return true
         }
+
+        let instr_raw = self.fetch(ram_lock, registers_lock);
+        trace!("step: {}pc = {:x}", registers_lock.get_pc(), instr_raw);
 
         // halt when instruction is HLT
         if instr_raw == 0 { self.stop(app_handle.clone()).await; return true }
@@ -163,10 +152,12 @@ impl CPU {
         // get the instruction struct from the raw Word
         let instr: Instruction = self.decode(instr_raw);
 
+        trace!("step: instr = {}", instr.to_string());
+
         // pass the necessary state objects and instruction struct
         // state guards need to be passed so that the execute method can properly access/modify
         // the application state
-        self.execute(ram_lock, registers_lock, cpu_lock, instr);
+        self.execute(ram_lock, registers_lock, instr);
 
         return false;
     }
@@ -182,8 +173,6 @@ impl Default for CPU {
 
 #[cfg(test)]
 mod tests {
-    // TODO: mock tauri AppHandle, Manager => RAMState, CPUThreadState, and RegistersState
-
     use crate::{cpu_enum::DataOpcode, memory::Register};
 
     use super::*;
