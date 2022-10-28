@@ -7,3 +7,13 @@
   - use custom protocol instead of Tauri events
 - vertical resizing of the window affects panels
 - visual indicators for when the the cpu is running or keybinds have been pressed
+
+## Stage 3
+
+- remake diagram
+- all data opcodes
+  - map instructions in ARM manual
+- ldr/str
+- swi should halt
+- trace methods
+- make sure memory panel updates when ldr/str are called

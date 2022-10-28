@@ -4,7 +4,7 @@
 */
 
 use lib::state::{ RAMState, RegistersState, OptionsState };
-use lib::memory::{ Memory, Word };
+use lib::memory::{ Memory, Word, Register };
 use lib::elf::{ ELFPayload }; 
 use log::trace;
 use log::error;
@@ -88,6 +88,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         ram_lock.loaded = true;
         ram_lock.endianness = elf_data.1;
         registers_lock.set_pc(elf_data.0);
+        registers_lock.set_reg_register(Register::r13, 0x7000);
 
         // notify the frontend that an ELF binary is successfully loaded
         app_handle.emit_all("elf_load", ELFPayload {

@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState, CPUState}, instruction::{TInstruction, Instruction, instr_data_reg_imm, instr_data_imm}, cpu_enum::InstrType};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState}, instruction::*, cpu_enum::InstrType};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -59,13 +59,13 @@ impl CPU {
         #[bitmatch]
         match instr {
             "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm" => instr_data_reg_imm(c, o, s, n, d, i, t, m),
-            // "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => (),
+            "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => instr_data_reg_reg(c, o, s, n, d, s, t, m),
             "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii" => instr_data_imm(c, o, s, n, d, r, i),
+            "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => instr_ldrstr_shifted_reg(c, p, u, b, w, l, n, d, i, t, m),
+            "cccc_010_pubwl_nnnn_dddd_ssssssssssss" => instr_ldrstr_imm(c, p, u, b, w, l, n, d, s),
             // TODO: add methods
             // "cccc_100_puwsl_nnnn_rrrrrrrrrrrrrrrr" => (),
-            // "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => (),
             // "cccc_011_pubwl_nnnn_dddd_00000000_mmmm" => (),
-            // "cccc_011_pubwl_nnnn_dddd_ssssssssssss" => (),
             // "cccc_010_pu1wl_nnnn_dddd_hhhh_1_ss_1_iiii" => (),
             // "cccc_000_pu0wl_nnnn_dddd_0000_1_ss_1_mmmm" => (),
             // "cccc_1111_ssssssssssssssssssssssss" => (),
