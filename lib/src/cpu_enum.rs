@@ -7,16 +7,21 @@ pub enum InstrType {
     DataRegImm,
     DataRegReg,
     DataImm,
-    LDRSTRShiftReg,
-    LDRSTRReg,
-    LDRSTRImm,
-    LDRHSTRHImm,
-    LDRHSTRHReg,
-    LSM,
-    Branch,
+    LDRSTRShiftRegPre,
+    LDRSTRShiftRegPost,
+    LDRSTRRegPre,
+    LDRSTRRegPost,
+    LDRSTRImmPre,
+    LDRSTRImmPost,
+    LDRHSTRHImmPre,
+    LDRHSTRHImmPost,
+    LDRHSTRHRegPre,
+    LDRHSTRHRegPost,
+    LDMSTM,
+    B,
     SWI,
-    Multiply,
-    NOP
+    MUL,
+    NOP,
 }
 
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
@@ -35,7 +40,7 @@ impl fmt::Display for ShiftType {
 }
 
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
-pub enum LSMCode {
+pub enum LDMCode {
     DecAfter = 0,
     IncAfter = 1,
     DecBefore = 2,

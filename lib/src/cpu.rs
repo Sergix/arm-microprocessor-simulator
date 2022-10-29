@@ -58,29 +58,33 @@ impl CPU {
         // the bitmatcher matches a bit pattern to a specific instruction factory
         #[bitmatch]
         match instr {
-            "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm" => instr_data_reg_imm(c, o, s, n, d, i, t, m),
-            "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm" => instr_data_reg_reg(c, o, s, n, d, s, t, m),
-            "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii" => instr_data_imm(c, o, s, n, d, r, i),
-            "cccc_011_pubwl_nnnn_dddd_iiiii_tt_0_mmmm" => instr_ldrstr_shifted_reg(c, p, u, b, w, l, n, d, i, t, m),
-            "cccc_010_pubwl_nnnn_dddd_ssssssssssss" => instr_ldrstr_imm(c, p, u, b, w, l, n, d, s),
-            // TODO: add methods
-            // "cccc_100_puwsl_nnnn_rrrrrrrrrrrrrrrr" => (),
-            // "cccc_011_pubwl_nnnn_dddd_00000000_mmmm" => (),
-            // "cccc_010_pu1wl_nnnn_dddd_hhhh_1_ss_1_iiii" => (),
-            // "cccc_000_pu0wl_nnnn_dddd_0000_1_ss_1_mmmm" => (),
-            // "cccc_1111_ssssssssssssssssssssssss" => (),
-            // "cccc_000_0000_s_nnnn_0000_dddd_1001_mmmm" => ()
+            "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm"     => instr_data_reg_imm(c, o, s, n, d, i, t, m),
+            "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm"    => instr_data_reg_reg(c, o, s, n, d, s, t, m),
+            "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii"       => instr_data_imm(c, o, s, n, d, r, i),
+            "cccc_011_1_ubwl_nnnn_dddd_iiiii_tt_0_mmmm"     => instr_ldrstr_shifted_reg_pre(c, u, b, w, l, n, d, i, t, m),
+            "cccc_011_0_ubwl_nnnn_dddd_iiiii_tt_0_mmmm"     => instr_ldrstr_shifted_reg_post(c, u, b, w, l, n, d, i, t, m),
+            "cccc_011_1_ubwl_nnnn_dddd_00000000_mmmm"       => instr_ldrstr_reg_pre(c, u, b, w, l, n, d, m),
+            "cccc_011_0_ubwl_nnnn_dddd_00000000_mmmm"       => instr_ldrstr_reg_post(c, u, b, w, l, n, d, m),
+            "cccc_010_1_ubwl_nnnn_dddd_ssssssssssss"        => instr_ldrstr_imm_pre(c, u, b, w, l, n, d, s),
+            "cccc_010_0_ubwl_nnnn_dddd_ssssssssssss"        => instr_ldrstr_imm_post(c, u, b, w, l, n, d, s),
+            "cccc_000_1_u1wl_nnnn_dddd_hhhh_1_ss_1_iiii"    => instr_ldrhstrh_imm_pre(c, u, w, l, n, d, h, s, i),
+            "cccc_000_0_u1wl_nnnn_dddd_hhhh_1_ss_1_iiii"    => instr_ldrhstrh_imm_post(c, u, w, l, n, d, h, s, i),
+            "cccc_000_1_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_pre(c, u, w, l, n, d, s, m),
+            "cccc_000_0_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_post(c, u, w, l, n, d, s, m),
+            "cccc_101_l_oooooooooooooooooooooooo"           => instr_branch(c, l, o),
+            "cccc_100_uuswl_nnnn_rrrrrrrrrrrrrrrr"          => instr_ldmstm(c, u, s, w, l, n, r),
+            "cccc_000_0000_s_dddd_0000_ssss_1001_mmmm"      => instr_mul(c, s, d, s, m),
+            // TODO: "cccc_1111_ssssssssssssssssssssssss" => (), SWI
+            // HLT
             "????????????????????????????????" => Instruction::new(InstrType::NOP)
         }
     }
 
     pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) {
-        // TODO: check conditions
+        // TODO: check if condition passed and that the next instructions conditions allow if it did not pass
 
         // grab the execute method for the specific instruction and pass the state objects
         instr.get_execute()(ram_lock, registers_lock, instr);
-
-        // TODO: update PC
     }
 
     // will be called by SWI instruction

@@ -8,12 +8,23 @@
 - vertical resizing of the window affects panels
 - visual indicators for when the the cpu is running or keybinds have been pressed
 
-## Stage 3
+## Phase 3
 
 - remake diagram
-- all data opcodes
-  - map instructions in ARM manual
-- ldr/str
+- trace methods (--exec option)
+- PC should be +8
+- disassemblies
+- barrel shifter: lsl, lsr, asr, ror
 - swi should halt
-- trace methods
-- make sure memory panel updates when ldr/str are called
+- unit tests?
+- file comments
+- function comments
+- struct comments
+- struct field comments
+- update changelog
+- update README docs
+
+## Phase 4
+- all data opcode s-bit updates
+- CPSR conditions in CPU::execute
+- LDRH/STRH LSH codes (-> LDRD, LDREX, etc.)
