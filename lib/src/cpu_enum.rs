@@ -74,6 +74,12 @@ pub enum DataOpcode {
     MVN = 15
 }
 
+impl fmt::Display for DataOpcode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
 pub enum LSH {
     StrHalfWord = 1,
@@ -107,4 +113,15 @@ impl fmt::Display for Condition {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
+}
+
+#[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
+pub enum Mode {
+    User       = 0b10000,
+    FIQ        = 0b10001,
+    IRQ        = 0b10010,
+    Supervisor = 0b10011,
+    Abort      = 0b10111,
+    Undefined  = 0b11011,
+    System     = 0b11111
 }

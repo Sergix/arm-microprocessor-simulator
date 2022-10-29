@@ -26,8 +26,8 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
     let mut disassembly_instructions: Vec<DisassemblyInstruction> = Vec::new();
 
     // get 7 instructions: 3 before pc + pc + 3 after pc (each instruction is 4 bytes)
-    let pc = registers_lock.get_pc();
-    let mut address = pc - 12;
+    let pc = registers_lock.get_pc_current_address();
+    let mut address = pc.checked_sub(12).unwrap_or(0);
     loop {
         let instr_raw = ram_lock.read_word(address);
         let instr_str = cpu_lock.decode(instr_raw).to_string();
@@ -35,6 +35,7 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
         disassembly_instructions.push((breakpoint_set, address, instr_raw, instr_str));
         
         address += 4; // word is 4 bytes
+        if address as usize >= ram_lock.get_size() { break }
         if address > pc + 12 { break }
     }
 

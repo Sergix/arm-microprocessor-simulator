@@ -3,10 +3,10 @@
     Entry point for Tauri application
 */
 
-#![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
-)]
+// #![cfg_attr(
+//     all(not(debug_assertions), target_os = "windows"),
+//     windows_subsystem = "windows"
+// )]
 
 mod loader_cmd;
 mod registers_cmd;
@@ -14,13 +14,16 @@ mod flags_cmd;
 mod interface_cmd;
 mod memory_cmd;
 mod disassembly_cmd;
+mod cpu_cmd;
 
 use lib::memory;
 use lib::memory::Byte;
 use lib::options;
 use lib::cpu;
+use lib::state::CPUState;
 use lib::state::OptionsState;
 use lib::state::RAMState;
+use lib::trace;
 use log::trace;
 use tauri::{async_runtime::{Mutex, spawn}, Manager};
 use tauri_plugin_log::{fern::colors::ColoredLevelConfig, LogTarget, LoggerBuilder};
@@ -41,6 +44,7 @@ fn main() {
             app.manage(Mutex::new(options::Options::default()));
             app.manage(Mutex::new(cpu::CPU::default()));
             app.manage(Mutex::new(cpu::CPUThreadWatcher::default()));
+            app.manage(Mutex::new(trace::TraceFile::default()));
 
             match app.get_cli_matches() {
                 Ok(matches) => {
@@ -59,27 +63,33 @@ fn main() {
             }
             
             let handle = app.app_handle();
+            let elf_file;
             
-            let opts: OptionsState = handle.state();
-            let opts_lock = opts.blocking_lock();
+            // drop locks immediately
+            {
+                let opts: OptionsState = handle.state();
+                let opts_lock = opts.blocking_lock();
 
-            let memory: RAMState = handle.state();
-            let mut memory_lock = memory.blocking_lock();
-            
-            // create RAM using memsize
-            memory_lock.size = opts_lock.memory_size;
-            memory_lock.memory_array.resize(opts_lock.memory_size, 0);
-            
-            // debug information
-            trace!("OPTIONS: {}bytes, {}", opts_lock.memory_size, opts_lock.elf_file);
-            trace!("RAM Details: {}bytes, {}actual", memory_lock.size, memory_lock.memory_array.len());
+                let cpu: CPUState = handle.state();
+                let mut cpu_lock = cpu.blocking_lock();
 
-            // copy here to pass to loader after locks are freed
-            let elf_file: String = String::clone(&opts_lock.elf_file);
+                let memory: RAMState = handle.state();
+                let mut memory_lock = memory.blocking_lock();
 
-            // free locks
-            drop(memory_lock);
-            drop(opts_lock);
+                // enable CPU step tracing if --exec is provided and an elf-file is provided
+                if opts_lock.exec && !opts_lock.elf_file.is_empty() { cpu_lock.toggle_trace(); }
+                
+                // create RAM using memsize
+                memory_lock.size = opts_lock.memory_size;
+                memory_lock.memory_array.resize(opts_lock.memory_size, 0);
+                
+                // debug information
+                trace!("OPTIONS: {}bytes, {}", opts_lock.memory_size, opts_lock.elf_file);
+                trace!("RAM Details: {}bytes, {}actual", memory_lock.size, memory_lock.memory_array.len());
+
+                // copy here to pass to loader after locks are freed
+                elf_file = String::clone(&opts_lock.elf_file);
+            }
             
             // if a cmd-line argument file was passed
             if !elf_file.is_empty() {
@@ -91,6 +101,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            cpu_cmd::cmd_get_trace,
             loader_cmd::cmd_get_elf,
             loader_cmd::cmd_load_elf,
             registers_cmd::cmd_get_registers,
@@ -105,6 +116,7 @@ fn main() {
             interface_cmd::cmd_add_breakpoint,
             interface_cmd::cmd_remove_breakpoint,
             interface_cmd::cmd_toggle_breakpoint,
+            interface_cmd::cmd_toggle_trace
         ])
         .plugin(
             LoggerBuilder::new()

@@ -1,4 +1,4 @@
-use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload }};
+use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState, TraceFileState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload }};
 use log::{trace};
 use tauri::{AppHandle, Manager};
 use crate::{memory_cmd::chunk_memory, disassembly_cmd::build_disassembly_payload};
@@ -115,6 +115,23 @@ pub async fn cmd_toggle_breakpoint(address: AddressSize, cpu_state: CPUState<'_>
 
     // update disassembly window
     app_handle.emit_all("disassembly_update", build_disassembly_payload(app_handle.clone()).await).unwrap();
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cmd_toggle_trace(cpu_state: CPUState<'_>, trace_state: TraceFileState<'_>) -> Result<(), ()> {
+    trace!("cmd_toggle_trace: toggling CPU trace state...");
+
+    let trace_enabled = (&mut cpu_state.lock().await).toggle_trace();
+
+    let trace_lock = &mut trace_state.lock().await;
+    if trace_enabled {
+        trace_lock.clear_trace_file().unwrap();
+        trace_lock.open_trace_file();
+    } else {
+        trace_lock.close_trace_file();
+    }
 
     Ok(())
 }

@@ -1,13 +1,15 @@
-import { Component, createSignal, Show } from "solid-js"
+import { Component, createSignal, onMount, Show } from "solid-js"
 import { invoke } from "@tauri-apps/api"
 import { filename } from "./state"
 import hotkeys from "hotkeys-js"
+import * as log from 'tauri-plugin-log-api'
 
 import styles from './css/Toolbar.module.css'
 
 const Toolbar: Component = () => {
     const [running, setRunning] = createSignal(false);
     const [resetting, setResetting] = createSignal(false);
+    const [trace, setTrace] = createSignal(false);
 
     hotkeys('f5,f10,ctrl+q,ctrl+r', (e, handler) => {
 		e.preventDefault();
@@ -16,6 +18,7 @@ const Toolbar: Component = () => {
 			case 'f10': step(); break;
 			case 'ctrl+q': stop(); break;
 			case 'ctrl+r': reset(); break;
+            case 'ctrl+t': toggle_trace(); break;
 			default: break;
 		}
 
@@ -54,6 +57,19 @@ const Toolbar: Component = () => {
         setResetting(false)
     }
 
+    const toggle_trace = () => {
+        setTrace(!trace())
+        invoke('cmd_toggle_trace')
+    }
+
+    onMount(async () => {
+        log.trace("SolidJS[Toolbar.onMount]: getting cpu state...")
+
+        const payload: ICPUPayload = await invoke('cmd_get_trace')
+        
+        setTrace(payload.trace)
+    })
+
     return (
         <header class={styles.toolbar}>
             <button onClick={run} disabled={running() || resetting()}>Run</button>
@@ -61,6 +77,7 @@ const Toolbar: Component = () => {
             <button onClick={stop} disabled={!running() || resetting()}>Stop</button>
             <button onClick={addBreakpoint}>Add Breakpoint</button>
             <button onClick={reset} disabled={resetting()}>Reset</button>
+            <button onClick={toggle_trace} classList={ {['!bg-green-700']: trace() } }>Trace</button>
             <Show when={resetting()}>
                 <p class="ml-4 font-sans text-white italic text-md my-auto">Resetting...</p>
             </Show>

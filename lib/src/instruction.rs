@@ -1,4 +1,4 @@
-use std::{fmt, vec};
+use std::fmt;
 
 use tokio::sync::MutexGuard;
 
@@ -81,12 +81,11 @@ pub trait TInstruction {
     // https://developer.arm.com/documentation/dui0489/i/arm-and-thumb-instructions/operand2-as-a-register-with-optional-shift?lang=en
     fn shift_value(value: Word, shift_amount: Word, shift_type: ShiftType) -> Word {
         match shift_type {
-            ShiftType::LSL => todo!(),
-            ShiftType::LSR => todo!(),
-            ShiftType::ASR => todo!(),
-            ShiftType::ROR => todo!(),
-        };
-        0
+            ShiftType::LSL => value << shift_amount,
+            ShiftType::LSR => value >> shift_amount,
+            ShiftType::ASR => ((value as i32) >> shift_amount) as Word, // force ASR in Rust
+            ShiftType::ROR => value.rotate_right(shift_amount),
+        }
     }
 
     fn rotate_value(rotate: Byte, imm: Byte) -> Word {
@@ -394,27 +393,6 @@ impl TInstruction for Instruction {
     }
 }
 
-fn get_data_opcode_str(opcode: DataOpcode) -> String {
-    match opcode {
-        DataOpcode::MOV => "mov".to_string(),
-        DataOpcode::AND => "and".to_string(),
-        DataOpcode::EOR => "eor".to_string(),
-        DataOpcode::SUB => "sub".to_string(),
-        DataOpcode::RSB => "rsb".to_string(),
-        DataOpcode::ADD => "add".to_string(),
-        DataOpcode::ADC => "adc".to_string(),
-        DataOpcode::SBC => "sbc".to_string(),
-        DataOpcode::RSC => "rsc".to_string(),
-        DataOpcode::TST => "tst".to_string(),
-        DataOpcode::TEQ => "teq".to_string(),
-        DataOpcode::CMP => "cmp".to_string(),
-        DataOpcode::CMN => "cmn".to_string(),
-        DataOpcode::ORR => "orr".to_string(),
-        DataOpcode::BIC => "bic".to_string(),
-        DataOpcode::MVN => "mvn".to_string(),
-    }
-}
-
 fn get_s_bit_str(s_bit: bool) -> String {
     match s_bit {
         true => "s".to_string(),
@@ -490,7 +468,7 @@ fn get_shift_str(shift_type: ShiftType, imm: Word) -> String {
 fn get_reg_list_str(reg_list: Word) -> String {
     let mut regs: Vec<String> = Vec::new();
 
-    for ri in 0..15 {
+    for ri in 0..=15 {
         if (reg_list >> ri) == 1 {
             let r: Register = num::FromPrimitive::from_u32(ri).unwrap();
             regs.push(r.to_string());
@@ -531,7 +509,7 @@ impl fmt::Display for Instruction {
                 fmt.write_str(
                     format!(
                         "{}{}{} {}, {} #{}",
-                        get_data_opcode_str(self.get_data_opcode().unwrap()),
+                        self.get_data_opcode().unwrap().to_string().to_lowercase(),
                         get_condition_str(self.get_condition()),
                         get_s_bit_str(self.get_s_bit().unwrap()),
                         self.get_rd().unwrap().to_string(),
@@ -542,6 +520,7 @@ impl fmt::Display for Instruction {
             },
             InstrType::DataRegImm => {
                 // TODO: ignore rn if mov or mvn
+                // TODO: refactor the data disassemblies
 
                 // optional rn
                 let rn = match self.get_data_opcode().unwrap() {
@@ -553,15 +532,16 @@ impl fmt::Display for Instruction {
                 };
                 
                 // optional operand2
+                // TODO: ignore if zero shift
                 let operand2 = match self.get_imm_shift() {
-                    Some(_) => format!("{} #{}", self.get_shift_type().unwrap().to_string(), self.get_imm_shift().unwrap().to_string()),
+                    Some(_) => format!("{} #{}", self.get_shift_type().unwrap().to_string().to_lowercase(), self.get_imm_shift().unwrap().to_string()),
                     None => "".to_string(),
                 };
                 
                 fmt.write_str(
                     format!(
                         "{}{}{} {}, {} {} {}",
-                        get_data_opcode_str(self.get_data_opcode().unwrap()),
+                        self.get_data_opcode().unwrap().to_string().to_lowercase(),
                         get_condition_str(self.get_condition()),
                         get_s_bit_str(self.get_s_bit().unwrap()),
                         self.get_rd().unwrap().to_string(),
@@ -584,7 +564,7 @@ impl fmt::Display for Instruction {
                 
                 // optional operand2
                 let operand2 = match self.get_imm_shift() {
-                    Some(_) => format!("{} {}", self.get_shift_type().unwrap().to_string(), self.get_rs().unwrap().to_string()),
+                    Some(_) => format!("{} {}", self.get_shift_type().unwrap().to_string().to_lowercase(), self.get_rs().unwrap().to_string()),
                     None => "".to_string(),
                 };
                 
@@ -592,7 +572,7 @@ impl fmt::Display for Instruction {
                 fmt.write_str(
                     format!(
                         "{}{}{} {}, {} {}, {}",
-                        get_data_opcode_str(self.get_data_opcode().unwrap()),
+                        self.get_data_opcode().unwrap().to_string().to_lowercase(),
                         get_condition_str(self.get_condition()),
                         get_s_bit_str(self.get_s_bit().unwrap()),
                         self.get_rd().unwrap().to_string(),
@@ -785,7 +765,7 @@ impl fmt::Display for Instruction {
                 fmt.write_str(
                     format!(
                         "{}{}{} {}{}, {{{}}}",
-                        get_ldr_str_str(self.get_ldr_str().unwrap()),
+                        get_ldm_stm_str(self.get_ldr_str().unwrap()),
                         get_condition_str(self.get_condition()),
                         get_ldm_code_str(self.get_ldm().unwrap()),
                         self.get_rn().unwrap().to_string(),
@@ -888,8 +868,6 @@ pub fn instr_data_imm(condition: Word, opcode: Word, s_bit: Word, rn: Word, rd: 
     instr.set_rd(rd);
     instr.set_rotate(rotate as Byte);
     instr.set_imm(imm as Byte);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_data_imm);
 
     instr
@@ -909,8 +887,6 @@ pub fn instr_ldrstr_shifted_reg_pre(condition: Word, add_sub: Word, byte_word: W
     instr.set_imm_shift(imm);
     instr.set_shift_type(shift_type);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrstr_shifted_reg_pre);
 
     instr
@@ -929,8 +905,6 @@ pub fn instr_ldrstr_shifted_reg_post(condition: Word, add_sub: Word, byte_word: 
     instr.set_imm_shift(imm);
     instr.set_shift_type(shift_type);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrstr_shifted_reg_post);
 
     instr
@@ -947,8 +921,6 @@ pub fn instr_ldrstr_reg_pre(condition: Word, add_sub: Word, byte_word: Word, wri
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrstr_reg_pre);
 
     instr
@@ -965,8 +937,6 @@ pub fn instr_ldrstr_reg_post(condition: Word, add_sub: Word, byte_word: Word, wr
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrstr_reg_post);
 
     instr
@@ -983,8 +953,6 @@ pub fn instr_ldrstr_imm_pre(condition: Word, add_sub: Word, byte_word: Word, wri
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_imm_shift(imm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrstr_imm_pre);
 
     instr
@@ -1001,8 +969,6 @@ pub fn instr_ldrstr_imm_post(condition: Word, add_sub: Word, byte_word: Word, wr
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_imm_shift(imm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrstr_imm_post);
 
     instr
@@ -1019,8 +985,6 @@ pub fn instr_ldrhstrh_imm_pre(condition: Word, add_sub: Word, writeback: Word, l
     instr.set_rd(rd);
     instr.set_lsh(lsh);
     instr.set_imm(((high_bits as Byte) << 4) | (low_bits as Byte));
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrhstrh_imm_pre);
 
     instr
@@ -1037,8 +1001,6 @@ pub fn instr_ldrhstrh_imm_post(condition: Word, add_sub: Word, writeback: Word, 
     instr.set_rd(rd);
     instr.set_lsh(lsh);
     instr.set_imm(((high_bits as Byte) << 4) | (low_bits as Byte));
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrhstrh_imm_post);
 
     instr
@@ -1055,8 +1017,6 @@ pub fn instr_ldrhstrh_reg_pre(condition: Word, add_sub: Word, writeback: Word, l
     instr.set_rd(rd);
     instr.set_lsh(lsh);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrhstrh_reg_pre);
 
     instr
@@ -1073,8 +1033,6 @@ pub fn instr_ldrhstrh_reg_post(condition: Word, add_sub: Word, writeback: Word, 
     instr.set_rd(rd);
     instr.set_lsh(lsh);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldrhstrh_reg_post);
 
     instr
@@ -1085,8 +1043,6 @@ pub fn instr_branch(condition: Word, l_bit: Word, offset: Word) -> Instruction {
     instr.set_condition(condition); 
     instr.set_l_bit(l_bit);
     instr.set_offset(((offset as i32) << 2) + 8);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_branch);
 
     instr
@@ -1101,8 +1057,6 @@ pub fn instr_ldmstm(condition: Word, ldm_code: Word, s_bit: Word, writeback: Wor
     instr.set_ldr_str((ldr_str & 0x1) != 0);
     instr.set_rn(rn);
     instr.set_reg_list(reg_list);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_ldmstm);
 
     instr
@@ -1115,9 +1069,16 @@ pub fn instr_mul(condition: Word, s_bit: Word, rd: Word, rs: Word, rm: Word) -> 
     instr.set_rd(rd);
     instr.set_rs(rs);
     instr.set_rm(rm);
-
-    // attach the appopriate execute function (could also be done inline)
     instr.set_execute(execute::instr_mul);
+
+    instr
+}
+
+pub fn instr_swi(condition: Word, swi: Word) -> Instruction {
+    let mut instr = Instruction::new(InstrType::SWI);
+    instr.set_condition(condition);
+    instr.set_swi(swi);
+    instr.set_execute(execute::instr_swi);
 
     instr
 }

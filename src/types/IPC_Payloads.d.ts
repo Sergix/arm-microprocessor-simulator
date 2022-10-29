@@ -22,6 +22,10 @@ interface IFlagsPayload {
     v: boolean
 }
 
+interface ICPUPayload {
+	trace: boolean
+}
+
 // array containing tuple, each with
 // - instruction address (focuses at current PC): Word/number
 // - instruction at that address: Word/number

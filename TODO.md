@@ -11,11 +11,7 @@
 ## Phase 3
 
 - remake diagram
-- trace methods (--exec option)
-- PC should be +8
-- disassemblies
-- barrel shifter: lsl, lsr, asr, ror
-- swi should halt
+- --exec option
 - unit tests?
 - file comments
 - function comments
@@ -23,6 +19,7 @@
 - struct field comments
 - update changelog
 - update README docs
+- move payloads to one file
 
 ## Phase 4
 - all data opcode s-bit updates

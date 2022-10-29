@@ -7,3 +7,4 @@ pub mod instruction;
 pub mod cpu_enum;
 pub mod execute;
 pub mod util;
+pub mod trace;

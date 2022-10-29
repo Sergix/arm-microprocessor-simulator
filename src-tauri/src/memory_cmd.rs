@@ -1,4 +1,4 @@
-use lib::memory::{RAMPayload, AddressSize, Byte};
+use lib::memory::{RAMPayload, AddressSize, Byte, Memory};
 use lib::state::RAMState;
 use log::{trace, error};
 use tauri::{AppHandle, Manager};

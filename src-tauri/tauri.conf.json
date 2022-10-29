@@ -65,6 +65,12 @@
           "takesValue": true,
           "index": 1,
           "required": false
+        },
+        {
+          "name": "exec",
+          "description": "execute the file immediately and output the trace log",
+          "takesValue": false,
+          "required": false
         }
       ]
     },

@@ -4,6 +4,8 @@ use log::error;
 use num_derive::FromPrimitive;
 use object::Endianness;
 
+use crate::cpu_enum::Mode;
+
 pub type Byte = u8;
 pub type HalfWord = u16;
 pub type Word = u32;
@@ -95,6 +97,8 @@ pub trait Memory {
     fn get_size(&self) -> usize;
     fn get_memory_array(&mut self) -> &mut Vec<Byte>;
     fn get_endianness(&self) -> Endianness;
+    fn get_checksum(&self) -> Checksum;
+    fn set_checksum(&mut self, checksum: Checksum);
 
     fn clear(&mut self) {
         let sz = self.get_size();
@@ -151,6 +155,9 @@ pub trait Memory {
             self.get_memory_array()[(addr + 2) as usize] = b2;
             self.get_memory_array()[(addr + 3) as usize] = b3;
         }
+
+        let checksum = self.calculate_checksum();
+        self.set_checksum(checksum);
     }
 
     
@@ -200,6 +207,9 @@ pub trait Memory {
             self.get_memory_array()[addr as usize] = b0;
             self.get_memory_array()[(addr + 1) as usize] = b1;
         }
+
+        let checksum = self.calculate_checksum();
+        self.set_checksum(checksum);
     }
 
     
@@ -219,6 +229,9 @@ pub trait Memory {
         }
 
         self.get_memory_array()[addr as usize] = value;
+
+        let checksum = self.calculate_checksum();
+        self.set_checksum(checksum);
     }
 
     
@@ -276,9 +289,8 @@ pub trait Memory {
         }
 
         let mut mask: Word = 0;
-        for i in start_bit..end_bit {
+        for i in start_bit..=end_bit {
             let bit: Word = 1 << i;
-
             mask |= bit;
         }
         mask & w
@@ -334,6 +346,10 @@ impl Registers {
         self.get_register(15)
     }
 
+    pub fn get_pc_current_address(&mut self) -> Word {
+        self.get_pc() - 8
+    }
+
     pub fn inc_pc(&mut self) {
         let next_addr = self.get_pc() + 4;
         self.set_register(15, next_addr)
@@ -351,6 +367,19 @@ impl Registers {
 
     pub fn get_cpsr_flag(&mut self, bit: u8) -> bool {
         self.test_flag(CPSR_ADDR, bit)
+    }
+
+    pub fn get_cpsr_mode(&mut self) -> Mode {
+        let mode_bits = Registers::extract_bits(self.get_cpsr(), 0, 4);
+        log::trace!("get_cpsr_mode: {} {}", self.get_cpsr(), mode_bits);
+        let mode: Mode = num::FromPrimitive::from_u32(mode_bits).unwrap();
+        mode
+    }
+
+    pub fn set_cpsr_mode(&mut self, mode: Mode) {
+        let mode_bits = mode as Byte;
+        let cleared_mode_byte = self.read_byte(CPSR_ADDR + 3) & 0b11100000;
+        self.write_byte(CPSR_ADDR + 3, cleared_mode_byte | mode_bits);
     }
 
     pub fn clear_nzcv(&mut self) {
@@ -395,6 +424,15 @@ impl Registers {
     pub fn get_cpsr_control_byte(&mut self) -> Byte {
         self.read_byte(CPSR_ADDR + 3)
     }
+
+    pub fn get_nzcv(&mut self) -> Byte {
+        let n = if self.get_n_flag() { 1 } else { 0 };
+        let z = if self.get_z_flag() { 1 } else { 0 };
+        let c = if self.get_c_flag() { 1 } else { 0 };
+        let v = if self.get_v_flag() { 1 } else { 0 };
+
+        n << 3 | z << 2 | c << 1 | v
+    }
 }
 
 impl Memory for Registers {
@@ -417,12 +455,16 @@ impl Memory for Registers {
     fn get_endianness(&self) -> Endianness {
         self.endianness
     }
+
+    // only to fulfill method stubs
+    fn get_checksum(&self) -> Checksum { 0 }
+    fn set_checksum(&mut self, _checksum: Checksum) { }
 }
 
 impl Default for Registers {
     fn default() -> Self {
         Registers {
-            endianness: Endianness::Little,
+            endianness: Endianness::Big,
             memory_array: vec![0; NUM_REGISTERS * REGISTER_BYTES],
             size: NUM_REGISTERS * REGISTER_BYTES
         }
@@ -436,12 +478,6 @@ pub struct RAM {
     pub memory_array: Vec<Byte>, // unsigned Byte array
     pub size: usize,
     pub display_offset: AddressSize // offset used when computing chunks for the frontend
-}
-
-impl RAM {
-    pub fn get_checksum(&self) -> Checksum {
-        self.checksum
-    }
 }
 
 impl Memory for RAM {
@@ -466,6 +502,14 @@ impl Memory for RAM {
 
     fn get_endianness(&self) -> Endianness {
         self.endianness
+    }
+
+    fn get_checksum(&self) -> Checksum {
+        self.checksum
+    }
+
+    fn set_checksum(&mut self, checksum: Checksum) {
+        self.checksum = checksum
     }
 }
 

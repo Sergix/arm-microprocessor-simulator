@@ -42,7 +42,7 @@ pub async fn read_elf_file(path: BasePathBuf, app_handle: AppHandle) -> Result<(
             endianness = elf_object.endian().unwrap();
             pc = elf_object.e_entry.get(endianness);
 
-            trace!("load_elf: {}e_entry {} segments", pc, elf_object.e_phnum(endianness));
+            trace!("read_elf_file: {}e_entry {} segments", pc, elf_object.e_phnum(endianness));
 
             // loop over program header segments (e_phnum)
             for segment in elf_object.program_headers(endianness, &*bin_data).unwrap() {
@@ -50,12 +50,12 @@ pub async fn read_elf_file(path: BasePathBuf, app_handle: AppHandle) -> Result<(
                 let memsz = segment.p_memsz(endianness);
                 let paddr = segment.p_paddr(endianness);
 
-                trace!("load_elf: segment {}memsz {}offset {}paddr", memsz, offset, paddr);
+                trace!("read_elf_file: segment {}memsz {}offset {}paddr", memsz, offset, paddr);
 
                 // write segment data to RAM starting at paddr
                 let ram_lock = &mut ram_state.lock().await;
                 let segment_data = segment.data(endianness, &*bin_data).unwrap();
-                for i in 0..(memsz - 1) {
+                for i in 0..memsz {
                     ram_lock.write_byte(paddr + i, segment_data[i as usize] as u8);
                 }
             }

@@ -4,7 +4,8 @@ use log::{trace, error};
 
 pub struct Options {
     pub memory_size: usize,
-    pub elf_file: String
+    pub elf_file: String,
+    pub exec: bool
 }
 
 impl Options {
@@ -70,6 +71,20 @@ impl Options {
                 std::process::exit(1)
             }
         });
+
+        self.exec = match matches.args.get("exec") {
+            Some(arg) => {
+                if arg.occurrences == 0 {
+                    false
+                } else {
+                    trace!("parse: exec with trace enabled");
+                    true
+                }
+            }
+            None => {
+                false
+            }
+        };
     }
 }
 
@@ -77,7 +92,8 @@ impl Default for Options {
     fn default() -> Self {
         Options {
             memory_size: memory::DEFAULT_MEMORY_SIZE,
-            elf_file: String::new()
+            elf_file: String::new(),
+            exec: false
         }
     }
 }

@@ -1,6 +1,6 @@
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, ShiftType, LDMCode}};
+use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode}};
 
 // this method matches all the data operations with their appropriate operation
 // the caller is expected to resolve the operand2 ahead of time; this function
@@ -39,9 +39,10 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
         }
     }
 
-    // TODO: update CPSR flags if s-bit enabled
     if instr.get_s_bit().unwrap() {
-        // match DataOpcode...
+        // TODO: update CPSR flags if s-bit enabled
+        println!("{}", alu_out);
+        todo!();
     }
 }
 
@@ -295,7 +296,8 @@ pub fn instr_branch(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mu
         registers_lock.set_reg_register(Register::r14, address_after_branch);
     }
 
-    let target_address: Word = ((registers_lock.get_pc() as i32) + instr.get_offset().unwrap()) as Word;
+    // TODO: check if supposed to increment by 8?
+    let target_address: Word = ((registers_lock.get_pc() as i32) + instr.get_offset().unwrap() + 8) as Word;
     registers_lock.set_pc(target_address);
 
     registers_lock.get_pc()
@@ -304,7 +306,7 @@ pub fn instr_branch(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mu
 fn ldm_ldr(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, start_address: Word) -> Word {
     let mut address = start_address;
     
-    for ri in 0..14 {
+    for ri in 0..=14 {
         if (instr.get_reg_list().unwrap() >> ri) & 0x1 == 1 {
             registers_lock.set_register(ri, ram_lock.read_word(address));
             address += 4;
@@ -324,7 +326,7 @@ fn ldm_ldr(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'
 fn ldm_str(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, start_address: Word) -> Word {
     let mut address = start_address;
 
-    for ri in 0..15 {
+    for ri in 0..=15 {
         if (instr.get_reg_list().unwrap() >> ri) & 0x1 == 1 {
             ram_lock.write_word(address, registers_lock.get_register(ri));
             address += 4;
@@ -376,7 +378,8 @@ pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mut
 pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
     let rs = registers_lock.get_reg_register(instr.get_rs().unwrap());
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
-    registers_lock.set_reg_register(instr.get_rd().unwrap(), (rm * rs) as Word);
+
+    registers_lock.set_reg_register(instr.get_rd().unwrap(), (rm as u64 * rs as u64) as Word);
 
     if instr.get_s_bit().unwrap() {
         let rd = registers_lock.get_reg_register(instr.get_rd().unwrap());
@@ -385,4 +388,16 @@ pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
     }
 
     registers_lock.get_reg_register(instr.get_rd().unwrap())
+}
+
+// p.58, 360
+pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, _instr: Instruction) -> Word {
+    // TODO: fill in rest of instruction
+    // https://protect.bju.edu/cps/courses/cps310/lectures/lecture11/
+    registers_lock.set_cpsr_mode(Mode::Supervisor);
+    registers_lock.set_cpsr_flag(5, false); // ARM state
+    registers_lock.set_cpsr_flag(7, true);  // disable interrupts
+    registers_lock.set_pc(0x8);
+
+    0
 }

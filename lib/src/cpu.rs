@@ -1,12 +1,9 @@
-use core::time;
-use std::{thread::{self}};
-
 use log::trace;
 use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize}, state::{RAMState, RegistersState, CPUThreadWatcherState}, instruction::*, cpu_enum::InstrType};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{InstrType, Mode}};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -30,15 +27,38 @@ impl Default for CPUThreadWatcher {
     }
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct CPUPayload {
+    pub trace: bool
+}
+
 pub struct CPU {
-    breakpoints: Vec<AddressSize>
+    breakpoints: Vec<AddressSize>,
+    trace: bool,
+    trace_step: Word
 }
 
 impl CPU {
     pub fn new() -> Self {
         Self {
-            breakpoints: vec![0; 0]
+            breakpoints: vec![0; 0],
+            trace: false,
+            trace_step: 1
         }
+    }
+
+    pub fn get_trace(&self) -> bool {
+        self.trace
+    }
+
+    pub fn toggle_trace(&mut self) -> bool {
+        self.trace = !self.trace;
+
+        self.trace
+    }
+
+    pub fn reset_trace_step(&mut self) {
+        self.trace_step = 1
     }
 
     pub async fn stop(&self, app_handle: AppHandle) {
@@ -49,7 +69,7 @@ impl CPU {
 
     pub fn fetch(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>) -> Word {
         // return read word from RAM address specified by value of PC register
-        ram_lock.read_word(registers_lock.get_pc())
+        ram_lock.read_word(registers_lock.get_pc_current_address())
     }
 
     #[bitmatch]
@@ -74,17 +94,16 @@ impl CPU {
             "cccc_101_l_oooooooooooooooooooooooo"           => instr_branch(c, l, o),
             "cccc_100_uuswl_nnnn_rrrrrrrrrrrrrrrr"          => instr_ldmstm(c, u, s, w, l, n, r),
             "cccc_000_0000_s_dddd_0000_ssss_1001_mmmm"      => instr_mul(c, s, d, s, m),
-            // TODO: "cccc_1111_ssssssssssssssssssssssss" => (), SWI
-            // HLT
-            "????????????????????????????????" => Instruction::new(InstrType::NOP)
+            "cccc_1111_ssssssssssssssssssssssss"            => instr_swi(c, s),
+            "????????????????????????????????"              => Instruction::new(InstrType::NOP)
         }
     }
 
-    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) {
+    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
         // TODO: check if condition passed and that the next instructions conditions allow if it did not pass
 
         // grab the execute method for the specific instruction and pass the state objects
-        instr.get_execute()(ram_lock, registers_lock, instr);
+        instr.get_execute()(ram_lock, registers_lock, instr)
     }
 
     // will be called by SWI instruction
@@ -109,6 +128,8 @@ impl CPU {
     }
     
     pub async fn run(&mut self, app_handle: AppHandle) {
+        
+
         // update thread state and drop immediately
         let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
         cpu_thread_state.lock().await.set_running(true);
@@ -124,7 +145,7 @@ impl CPU {
             if self.step(app_handle.clone()).await { break }
 
             // pause for 1/4 sec
-            thread::sleep(time::Duration::from_millis(250));
+            // thread::sleep(time::Duration::from_millis(250));
         }
 
         trace!("run: cpu stopped");
@@ -136,19 +157,24 @@ impl CPU {
         let registers_state: RegistersState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
         let registers_lock = &mut registers_state.lock().await;
+        let trace_state: TraceFileState = app_handle.state();
+        let trace_lock = &mut trace_state.lock().await;
 
-        // increment program counter
-        registers_lock.inc_pc();
+        trace!("step: trace_step: {}", self.trace_step);
+        trace!("step: cpsr: {}", registers_lock.get_cpsr());
+
+        // save PC for trace log
+        let saved_pc = registers_lock.get_pc_current_address();
 
         // stop when pc hits breakpoint address
-        if self.is_breakpoint(&registers_lock.get_pc()) { 
+        if self.is_breakpoint(&registers_lock.get_pc_current_address()) { 
             trace!("step: hit breakpoint");
             self.stop(app_handle.clone()).await;
             return true
         }
 
         let instr_raw = self.fetch(ram_lock, registers_lock);
-        trace!("step: {}pc = {:x}", registers_lock.get_pc(), instr_raw);
+        trace!("step: {}pc = {:x}", registers_lock.get_pc_current_address(), instr_raw);
 
         // halt when instruction is HLT
         if instr_raw == 0 { self.stop(app_handle.clone()).await; return true }
@@ -163,6 +189,34 @@ impl CPU {
         // the application state
         self.execute(ram_lock, registers_lock, instr);
 
+        // increment program counter
+        registers_lock.inc_pc();
+
+        // get all registers and remove r15
+        let mut reg_all = registers_lock.get_all();
+        reg_all.pop();
+
+        // update trace log and step counter
+        trace_lock.append_trace_file_line(
+            self.trace_step,
+            saved_pc,
+            ram_lock.get_checksum(),
+            registers_lock.get_n_flag() as Byte,
+            registers_lock.get_z_flag() as Byte,
+            registers_lock.get_c_flag() as Byte,
+            registers_lock.get_v_flag() as Byte,
+            registers_lock.get_cpsr_mode(),
+            reg_all
+        );
+        self.trace_step += 1;
+
+        // halt if SWI instruction was executed (check if Supervisor mode)
+        // TODO: remove in Phase 4
+        if registers_lock.get_cpsr_mode() == Mode::Supervisor {
+            self.stop(app_handle.clone()).await;
+            return true;
+        }
+
         return false;
     }
 }
@@ -170,7 +224,9 @@ impl CPU {
 impl Default for CPU {
     fn default() -> Self {
         Self {
-            breakpoints: vec![0; 0]
+            breakpoints: vec![0; 0],
+            trace: false,
+            trace_step: 1
         }
     }
 }
