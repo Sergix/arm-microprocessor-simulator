@@ -19,8 +19,7 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Simulated RAM with checksums
 - Unit tests
   - All `lib::memory` logic
-  - Not many for disassembly, decoding, or `instruction` building
-  - Testing `lib::execute` for instructions is currently not feasible due to threading model (but *may* be possible)
+  - A few for disassembly, decoding, and `instruction` building
 - Disassembly table (with accurate assembly)
 - Register viewer (r0..15)
 - Flags display
@@ -29,15 +28,17 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Add and toggle breakpoints in the disassembly window
 - All hotkeys implemented
 - Multithreaded debugger controls -- Run, Step, Stop, Reset
-- All instructions (data processing, LDR/STR, ...) implemented except:
-  - Conditionals (`al`, `eq`, ...)
-  - SWI (currently halts CPU)
-  - LSH versions of LDRH/STRH
-  - Data processing comparison instructions (`TEQ`, `CMP`, ...)
-  - CPSR-updating instructions with s-bit
+- All required instructions implemented
 - Optional trace logs output to `trace.log` in local directory
   - Correct trace for C- and B-level tests
 - Automatic execution through `--exec` option
+
+### Not yet implemented features
+
+- Code is not properly commented
+- Unit tests
+  - Not many for disassembly, decoding, or `instruction` building
+  - Testing `lib::execute` for instructions is currently not feasible due to threading model (but *may* be possible; not yet tested)
 
 ## Prerequisites
 
