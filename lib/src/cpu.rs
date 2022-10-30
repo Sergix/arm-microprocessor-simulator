@@ -233,7 +233,7 @@ impl Default for CPU {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cpu_enum::{DataOpcode, LDMCode}, memory::Register};
+    use crate::{cpu_enum::{DataOpcode, LDMCode, ShiftType}, memory::Register};
 
     use super::*;
     
@@ -255,6 +255,47 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_str_imm_pre() {
+        let cpu = CPU::default();
+        let instr = cpu.decode(0xe5021004);
+        assert_eq!(instr.get_type(), InstrType::LDRSTRImmPre);
+        assert_eq!(instr.get_add_sub().unwrap(), false);
+        assert_eq!(instr.get_writeback().unwrap(), false);
+        assert_eq!(instr.get_ldr_str().unwrap(), false);
+        assert_eq!(instr.get_rd().unwrap(), Register::r1);
+        assert_eq!(instr.get_rn().unwrap(), Register::r2);
+        assert_eq!(instr.get_imm_shift().unwrap(), 4);
+    }
+
+    #[test]
+    fn test_decode_str_shift_reg_pre() {
+        let cpu = CPU::default();
+        let instr = cpu.decode(0xe78210c4);
+        assert_eq!(instr.get_type(), InstrType::LDRSTRShiftRegPre);
+        assert_eq!(instr.get_add_sub().unwrap(), true);
+        assert_eq!(instr.get_writeback().unwrap(), false);
+        assert_eq!(instr.get_ldr_str().unwrap(), false);
+        assert_eq!(instr.get_rd().unwrap(), Register::r1);
+        assert_eq!(instr.get_rn().unwrap(), Register::r2);
+        assert_eq!(instr.get_rm().unwrap(), Register::r4);
+        assert_eq!(instr.get_shift_type().unwrap(), ShiftType::ASR);
+        assert_eq!(instr.get_imm_shift().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_decode_ldm() {
+        let cpu = CPU::default();
+        let instr = cpu.decode(0xe8bd000a);
+        assert_eq!(instr.get_type(), InstrType::LDMSTM);
+        assert_eq!(instr.get_ldm().unwrap(), LDMCode::IncAfter);
+        assert_eq!(instr.get_s_bit().unwrap(), false);
+        assert_eq!(instr.get_writeback().unwrap(), true);
+        assert_eq!(instr.get_ldr_str().unwrap(), true);
+        assert_eq!(instr.get_rn().unwrap(), Register::r13);
+        assert_eq!(instr.get_reg_list().unwrap(), 0b1010);
+    }
+
+    #[test]
     fn test_decode_stm() {
         let cpu = CPU::default();
         let instr = cpu.decode(0xe92d0016);
@@ -266,6 +307,21 @@ mod tests {
         assert_eq!(instr.get_rn().unwrap(), Register::r13);
         assert_eq!(instr.get_reg_list().unwrap(), 0b10110);
     }
+
+    #[test]
+    fn test_decode_mul() {
+        let cpu = CPU::default();
+        let instr = cpu.decode(0xe92d0016);
+        assert_eq!(instr.get_type(), InstrType::LDMSTM);
+        assert_eq!(instr.get_ldm().unwrap(), LDMCode::DecBefore);
+        assert_eq!(instr.get_s_bit().unwrap(), false);
+        assert_eq!(instr.get_writeback().unwrap(), true);
+        assert_eq!(instr.get_ldr_str().unwrap(), false);
+        assert_eq!(instr.get_rn().unwrap(), Register::r13);
+        assert_eq!(instr.get_reg_list().unwrap(), 0b10110);
+    }
+
+
 
     #[test]
     fn test_execute() {
