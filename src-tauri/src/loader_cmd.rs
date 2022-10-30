@@ -98,7 +98,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         ram_lock.endianness = elf_data.1;
         registers_lock.set_pc(elf_data.0 + 8);
         registers_lock.set_reg_register(Register::r13, 0x7000);
-        registers_lock.set_cpsr_mode(Mode::User);
+        registers_lock.set_cpsr_mode(Mode::System);
 
         // notify the frontend that an ELF binary is successfully loaded
         app_handle.emit_all("elf_load", ELFPayload {

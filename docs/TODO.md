@@ -11,7 +11,6 @@
 ## Phase 3
 
 - remake diagram
-- --exec option
 - unit tests?
 - file comments
 - function comments

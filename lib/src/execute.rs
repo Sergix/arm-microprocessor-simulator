@@ -160,6 +160,39 @@ fn ldrh_strh_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
     );
 }
 
+fn ldm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, start_address: Word) -> Word {
+    let mut address = start_address;
+    
+    for ri in 0..=14 {
+        if (instr.get_reg_list().unwrap() >> ri) & 0x1 == 1 {
+            registers_lock.set_register(ri, ram_lock.read_word(address));
+            address += 4;
+        }
+    }
+
+    // if bit 15 n the register list is set
+    if instr.get_reg_list().unwrap() >> 15 & 0x1 == 1 {
+        let value = ram_lock.read_word(address);
+        registers_lock.set_pc(value & 0xFFFFFFFC);
+        address += 4; 
+    }
+
+    address
+}
+
+fn stm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, start_address: Word) -> Word {
+    let mut address = start_address;
+
+    for ri in 0..=15 {
+        if (instr.get_reg_list().unwrap() >> ri) & 0x1 == 1 {
+            ram_lock.write_word(address, registers_lock.get_register(ri));
+            address += 4;
+        }
+    }
+
+    address
+}
+
 // each method accesses/modifies app state as necessary;
 // however, this renders the code difficult to test with the current Tauri APIs
 // since the Tauri State API cannot be mocked (yet)
@@ -303,39 +336,6 @@ pub fn instr_branch(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mu
     registers_lock.get_pc()
 }
 
-fn ldm_ldr(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, start_address: Word) -> Word {
-    let mut address = start_address;
-    
-    for ri in 0..=14 {
-        if (instr.get_reg_list().unwrap() >> ri) & 0x1 == 1 {
-            registers_lock.set_register(ri, ram_lock.read_word(address));
-            address += 4;
-        }
-    }
-
-    // if bit 15 n the register list is set
-    if instr.get_reg_list().unwrap() >> 15 & 0x1 == 1 {
-        let value = ram_lock.read_word(address);
-        registers_lock.set_pc(value & 0xFFFFFFFC);
-        address += 4; 
-    }
-
-    address
-}
-
-fn ldm_str(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, start_address: Word) -> Word {
-    let mut address = start_address;
-
-    for ri in 0..=15 {
-        if (instr.get_reg_list().unwrap() >> ri) & 0x1 == 1 {
-            ram_lock.write_word(address, registers_lock.get_register(ri));
-            address += 4;
-        }
-    }
-
-    address
-}
-
 // p.187
 pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
@@ -366,8 +366,8 @@ pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mut
     }
 
     let address = match instr.get_ldr_str().unwrap() {
-        true => ldm_ldr(ram_lock, registers_lock, instr, start_address),
-        false => ldm_str(ram_lock, registers_lock, instr, start_address),
+        true => ldm(ram_lock, registers_lock, instr, start_address),
+        false => stm(ram_lock, registers_lock, instr, start_address),
     };
 
     assert_eq!(end_address, address - 4);
