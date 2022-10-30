@@ -10,6 +10,7 @@ const Toolbar: Component = () => {
     const [running, setRunning] = createSignal(false);
     const [resetting, setResetting] = createSignal(false);
     const [trace, setTrace] = createSignal(false);
+    const [hotkey, setHotkey] = createSignal("");
 
     hotkeys('f5,f10,ctrl+q,ctrl+r', (e, handler) => {
 		e.preventDefault();
@@ -22,7 +23,11 @@ const Toolbar: Component = () => {
 			default: break;
 		}
 
-        // TODO: have small box in toolbar to represent when a key action is performed
+        // have small box in toolbar to represent when a key action is performed
+        setHotkey(handler.key)
+        setTimeout(() => {
+            setHotkey("")
+        }, 1000)
 	})
 
     const run = async () => {
@@ -81,6 +86,7 @@ const Toolbar: Component = () => {
             <Show when={resetting()}>
                 <p class="ml-4 font-sans text-white italic text-md my-auto">Resetting...</p>
             </Show>
+            <aside class="absolute top-0 right-0 m-6 px-6 py-3 bg-slate-900 text-white border-2 border-double border-b-4 border-spacing-2 border-violet-900 font-mono italic rounded-lg shadow-md transition-opacity ease-in duration-150" classList={ {['opacity-90']: hotkey() !== "", ['opacity-0']: hotkey() === ""} }>{hotkey()}</aside>
         </header>
     )
 }
