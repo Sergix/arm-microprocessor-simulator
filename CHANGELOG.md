@@ -198,3 +198,104 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 - Breakpoints in disassembly window are now clickable to toggle
 - Overlay for memory panel to notify user that the table is still chunking memory
+
+### 10-1-22
+
+#### Progress [0.25hrs]
+
+- Work on draft UML with instruction decoding design
+
+## Week 6
+
+### 10-8-22
+
+#### Progress [2.5hrs]
+
+- Finish draft UML design and upload with document detailing outline
+
+## Week 7
+
+### 10-13-22
+
+#### Progress [2hrs]
+
+- Detailed design progress
+- Add bitmatch library for decoding instructions
+- Add CPU enums in `lib::cpu_enum` with easy converting with primitives using `num::FromPrimitive`
+
+#### Sources
+
+- [bitmatch library](https://docs.rs/bitmatch/latest/bitmatch/)
+- [num::FromPrimitive](https://docs.rs/num/0.1.29/num/traits/trait.FromPrimitive.html)
+
+### 10-15-22
+
+#### Progress [2hrs]
+
+- Detailed design progress
+- Add basic structs with traits for instruction categories
+- Implement factories for a couple basic data instructions
+- String conversion for enums
+
+## Week 8
+
+### 10-18-22
+
+#### Progress [3hrs]
+
+- Refactored instruction implementation to use a single `Instruction` struct rather than subtyping
+- Added more CPU enum string conversion
+- Implement disassembly and test for `mov` instruction
+- Make instruction execute pass function pointer for CPU to easily get execute method
+  
+### 10-19-22
+
+#### Progress [2.25hrs]
+
+- Outlne more program architecture
+- Match data opcodes for better data instruction execution
+- Add disassembly for more data instruction types
+
+## Week 9
+
+### 10-27-22
+
+#### Progress [2.25hrs]
+
+- Add some data processing and LDR/STR factories and execution implementations
+- Refactoring more of the `Instruction` class
+
+### 10-28-22
+
+#### Progress [4hrs]
+
+- Add all data processing, LDR/STR, LDRH/STRH, branch, LDR/STM, and MUL instructions
+- Split different executes based on ldr/str bits
+- Add helper methods to `Instruction` class
+
+#### Sources
+
+- The ARM Manual
+
+### 10-29-22
+
+#### Progress [14hrs] (yes, actually)
+
+- Disassembly for all the previous instructions listed and their categories
+- Log tracing
+- `--exec` option
+- `Mode` enum for switching CPU modes along with methods to easily switch the CPSR mode bits
+- Halt on SWI instruction
+- Barrel shifters
+- Memory now recomputes checksum when writing to memory
+- Trace toggle button and hotkey in UI toolbar
+- UI overlay that shows when the user presses a hotkey
+- Update UML detailed diagram
+- Fixed PC to properly point to two instructions (8 bytes) ahead
+- Update README documentation
+
+#### Sources
+
+- [Rust std::fs::File](https://doc.rust-lang.org/std/fs/struct.File.html)
+- [Rust bit shifting operators](https://doc.rust-lang.org/reference/expressions/operator-expr.html#arithmetic-and-logical-binary-operators)
+- [Barrel shifters](https://www.davespace.co.uk/arm/introduction-to-arm/barrel-shifter.html)

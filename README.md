@@ -2,8 +2,8 @@
 
 **Name:** Peyton McGinnis  
 **Course:** CpS 310  
-**Submission date:** 3 September 2022  
-**Hours spent this phase:** 22.15
+**Submission date:** 29 October 2022  
+**Hours spent this phase:** 32.25
 
 ## Overview
 
@@ -11,14 +11,17 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 
 ## Features
 
-- `--mem` and `<elf-file>` command line options are supported and validated
+- `--mem`, `--exec`, and `<elf-file>` command line options are supported and validated
 - Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
 - Scrollable memory grid
   - Navigates to any given address and properly formats the table
 - ELF file loader in GUI
 - Simulated RAM with checksums
-- Complete unit tests for Memory logic
-- Disassembly table (with mocked assembly)
+- Unit tests
+  - All `lib::memory` logic
+  - Not many for disassembly, decoding, or `instruction` building
+  - Testing `lib::execute` for instructions is currently not feasible due to threading model (but *may* be possible)
+- Disassembly table (with accurate assembly)
 - Register viewer (r0..15)
 - Flags display
 - Internal CPU simulator
@@ -26,6 +29,15 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Add and toggle breakpoints in the disassembly window
 - All hotkeys implemented
 - Multithreaded debugger controls -- Run, Step, Stop, Reset
+- All instructions (data processing, LDR/STR, ...) implemented except:
+  - Conditionals (`al`, `eq`, ...)
+  - SWI (currently halts CPU)
+  - LSH versions of LDRH/STRH
+  - Data processing comparison instructions (`TEQ`, `CMP`, ...)
+  - CPSR-updating instructions with s-bit
+- Optional trace logs output to `trace.log` in local directory
+  - Correct trace for C- and B-level tests
+- Automatic execution through `--exec` option
 
 ## Prerequisites
 
@@ -85,11 +97,13 @@ The Debug target binary (`--debug` mode) logs output to the shell, the WebView d
 
 ## User Guide
 
-`armsim.exe [--mem <memory-size>] <elf-file>`
+`armsim.exe [--mem <memory-size>] [--exec] <elf-file>`
 
 To launch the application from the command-line, navigate to the directory containing the program executable and run `armsim.exe elf_file.bin`. By default, this loads `elf_file.bin` into a 32K block of simulated RAM and opens a window on your desktop with a scrollable memory grid. The initial window has a button titled **Load ELF**. Once you click this button, it will open up a file selection dialog where you can select your ELF binary and it will automatically load into the window.
 
 To specify the amount of simulated RAM, simply pass in the `--mem <memory_size>` option: `armsim.exe --mem 33768 elf_file.bin`
+
+The `--exec` option automatically begins executing the executable oonce it finishes loading and enables trace logging (see *Trace Logs* below). The `<elf-file>` option must also be specified.
 
 #### Debugging Controls
 
@@ -104,6 +118,13 @@ Using the **Add Breakpoint** function, you can manually add a breakpoint at a gi
 
 Press **Reset** to reset the display, memory, and registers, but keep all breakpoints intact.
 
+#### Trace Logs
+
+The **Trace** function is used to output a log of all CPU steps to `./trace.log` to inspect all register information after the result of each instruction cycle. The format for each entry is:  
+`step_number program_counter checksum nzcv mode r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 `
+
+The **Trace** button in the UI will be *green* when trace logging is active for the currently loaded executable.
+
 #### Hotkeys
 
 1. Load File: Ctrl-O
@@ -112,6 +133,7 @@ Press **Reset** to reset the display, memory, and registers, but keep all breakp
 4. Stop execution: Ctrl-Q
 5. Reset: Ctrl-R
 6. Toggle Breakpoint: Ctrl-B
+7. Trace: Ctrl-T
 
 #### Memory Panel
 
@@ -121,11 +143,33 @@ In the memory panel, you can enter a hex address in the *Address* input and pres
 
 When one of the NZCV flags is active, the flag's icon will be green.
 
+## Instruction Implementation
+
+- `AND`, `EOR`, `SUB`, `RSB`, `ADD`, `SBC`, `RSC`, `ORR`, `MOV`, `BIC`, `MVN`
+  - register with immediate shift, register with register shift, immediate
+  - all barrel shifters (except RXX)
+- `LDR`, `STR`
+  - pre-index, pre-index writeback, post-index
+  - unsigned byte, word
+  - shifted register offset, register offset, immediate offset
+- `LDRH`, `STRH`: 
+  - LSH shifts not implemented
+  - pre-index, pre-index writeback, post-index
+  - register offset, immediate offset 
+- `B`, `BL`
+- `LDM`, `STM`
+  - with and without writeback
+  - All LSM codes (increment after, decrement before, ...)
+- `MUL`
+- `SWI`
+  - sets CPU mode, jumps, and halts
+
 ## Bug Report
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
-- Loading the memory grid in the display causes the app to hang since it's currently a very large computation. Working on a new implementation that uses WebSocket IPC.
 - Panels are not resized when the window's height changes, only the width
+- Intentional: attempting to execute data processing comparison instructions (`TEQ`, `CMP`, ...) will cause the program to panic
+- Some of the data processing disassemblies are inaccurate or have uneccessary components (i.e. shifts with `#0`, `Rn` for `MOV` and `MVN`, etc.)
 
 ## [Project Journal](CHANGELOG.md)
 

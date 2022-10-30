@@ -10,14 +10,11 @@
 
 ## Phase 3
 
-- remake diagram
 - unit tests?
 - file comments
 - function comments
 - struct comments
 - struct field comments
-- update changelog
-- update README docs
 - move payloads to one file
 
 ## Phase 4
