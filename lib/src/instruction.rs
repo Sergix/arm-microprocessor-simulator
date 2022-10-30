@@ -469,7 +469,7 @@ fn get_reg_list_str(reg_list: Word) -> String {
     let mut regs: Vec<String> = Vec::new();
 
     for ri in 0..=15 {
-        if (reg_list >> ri) == 1 {
+        if (reg_list >> ri) & 0b1 == 1 {
             let r: Register = num::FromPrimitive::from_u32(ri).unwrap();
             regs.push(r.to_string());
         }
@@ -1088,8 +1088,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_disassemble() {
+    fn test_disassemble_instr_data_imm() {
         let instr = instr_data_imm(0b1110, 0b1101, 0b0, 0b0000, 0b0010, 0b0000, 0b110000);
         assert_eq!("mov r2, #48", instr.to_string())
+    }
+
+    #[test]
+    fn test_shift_value() {
+        todo!()
+    }
+
+    #[test]
+    fn test_rotate_value() {
+        todo!();
+    }
+
+    #[test]
+    fn test_get_reg_list_str() {
+        assert_eq!(get_reg_list_str(0b10110), "r1, r2, r4");
     }
 }

@@ -233,7 +233,7 @@ impl Default for CPU {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cpu_enum::DataOpcode, memory::Register};
+    use crate::{cpu_enum::{DataOpcode, LDMCode}, memory::Register};
 
     use super::*;
     
@@ -243,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode() {
+    fn test_decode_mov() {
         let cpu = CPU::default();
         let instr = cpu.decode(0xe3a02030);
         assert_eq!(instr.get_type(), InstrType::DataImm);
@@ -252,6 +252,19 @@ mod tests {
         assert_eq!(instr.get_rn().unwrap(), Register::r0);
         assert_eq!(instr.get_rd().unwrap(), Register::r2);
         assert_eq!(instr.get_imm().unwrap(), 48);
+    }
+
+    #[test]
+    fn test_decode_stm() {
+        let cpu = CPU::default();
+        let instr = cpu.decode(0xe92d0016);
+        assert_eq!(instr.get_type(), InstrType::LDMSTM);
+        assert_eq!(instr.get_ldm().unwrap(), LDMCode::DecBefore);
+        assert_eq!(instr.get_s_bit().unwrap(), false);
+        assert_eq!(instr.get_writeback().unwrap(), true);
+        assert_eq!(instr.get_ldr_str().unwrap(), false);
+        assert_eq!(instr.get_rn().unwrap(), Register::r13);
+        assert_eq!(instr.get_reg_list().unwrap(), 0b10110);
     }
 
     #[test]
