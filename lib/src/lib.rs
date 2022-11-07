@@ -8,3 +8,4 @@ pub mod cpu_enum;
 pub mod execute;
 pub mod util;
 pub mod trace;
+pub mod disassemble;

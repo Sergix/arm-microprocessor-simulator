@@ -329,7 +329,6 @@ pub fn instr_branch(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mu
         registers_lock.set_reg_register(Register::r14, address_after_branch);
     }
 
-    // TODO: check if supposed to increment by 8?
     let target_address: Word = ((registers_lock.get_pc() as i32) + instr.get_offset().unwrap() + 8) as Word;
     registers_lock.set_pc(target_address);
 
