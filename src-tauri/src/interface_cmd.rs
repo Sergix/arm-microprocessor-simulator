@@ -29,6 +29,9 @@ pub async fn emit_payloads (app_handle: AppHandle) {
             v: registers_lock.get_v_flag()
         }).unwrap();
 
+        // notify ahead of time that the backend will be chunking memory
+        app_handle.emit_all("ram_chunking_signal", {}).unwrap();
+        
         // emit last since it's the most expensive
         app_handle.emit_all("ram_update", RAMPayload {
             checksum: ram_lock.checksum,

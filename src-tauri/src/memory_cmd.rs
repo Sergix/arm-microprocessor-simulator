@@ -43,11 +43,14 @@ pub fn chunk_memory(mut payload_memory_array: Vec<Byte>, mut offset: AddressSize
 }
 
 #[tauri::command]
-pub async fn cmd_get_ram(ram_state: RAMState<'_>) -> Result<RAMPayload, ()> {
+pub async fn cmd_get_ram(app_handle: AppHandle, ram_state: RAMState<'_>) -> Result<RAMPayload, ()> {
     trace!("cmd_get_ram: grabbing RAM...");
     
     let ram_lock = ram_state.lock().await;
     
+    // notify ahead of time that the backend will be chunking memory
+    app_handle.emit_all("ram_chunking_signal", {}).unwrap();
+
     Ok(RAMPayload {
         checksum: ram_lock.get_checksum(),
         memory_array: chunk_memory(ram_lock.memory_array.clone(), ram_lock.display_offset)

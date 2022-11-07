@@ -282,7 +282,7 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 #### Progress [14hrs] (yes, actually)
 
 - Disassembly for all the previous instructions listed and their categories
-- Log tracing
+- Trace logs
 - `--exec` option
 - `Mode` enum for switching CPU modes along with methods to easily switch the CPSR mode bits
 - Halt on SWI instruction

@@ -16,17 +16,30 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     const [offset, setOffset] = createSignal(0)
     const [inputOffset, setInputOffset] = createSignal(0)
 
+    listen('ram_chunking_signal', () => {
+        log.trace('SolidJS[MemoryPanel.listen]: updating memory chunking signal...')
+
+        setChunking(true)
+    })
+
     // updates from backend
     onMount(async () => {
         log.trace('SolidJS[MemoryPanel.onMount]: updating global memory state...')
         const payload: IRAMPayload = await invoke('cmd_get_ram')
+
         setChecksum(payload.checksum)
         setChunkedMemory(payload.memory_array)
+
+        setChunking(false)
     })
+
     listen('ram_update', ({ payload }: { payload: IRAMPayload }) => {
         log.trace('SolidJS[MemoryPanel.listen]: updating global memory state...')
+
         setChecksum(payload.checksum)
         setChunkedMemory(payload.memory_array)
+
+        setChunking(false)
     })
 
     const validateAndSetInputOffset = (value: string) => {
