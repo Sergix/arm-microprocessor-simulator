@@ -3,7 +3,7 @@ use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{InstrType, Mode, Condition}};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{Mode, Condition}};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -104,6 +104,7 @@ impl CPU {
         // the bitmatcher matches a bit pattern to a specific instruction factory
         #[bitmatch]
         match instr {
+            "11100001101000000000000000000000"              => instr_nop(),
             "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm"     => instr_data_reg_imm(c, o, s, n, d, i, t, m),
             "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm"    => instr_data_reg_reg(c, o, s, n, d, s, t, m),
             "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii"       => instr_data_imm(c, o, s, n, d, r, i),
@@ -125,7 +126,7 @@ impl CPU {
             "cccc_00010_r_00_1111_dddd_000000000000"        => instr_mrs(c, r, d),
             "cccc_00110_r_10_ffff_1111_rrrr_iiiiiiii"       => instr_msr_imm(c, r, f, r, i),
             "cccc_00010_r_10_ffff_1111_00000000_mmmm"       => instr_msr_reg(c, r, f, m),
-            "????????????????????????????????"              => Instruction::new(InstrType::NOP)
+            "????????????????????????????????"              => instr_nop(),
         }
     }
 
@@ -231,6 +232,7 @@ impl CPU {
 
         // get the instruction struct from the raw Word
         let mut instr: Instruction = self.decode(instr_raw);
+        instr.set_pc_address(registers_lock.get_pc());
 
         trace!("step: instr = {}", instr.to_string());
 
@@ -243,7 +245,7 @@ impl CPU {
                 char: char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0')
             }).unwrap();
         }
-
+        // TODO: here?
         // inject last character from keyboard event if needed
         instr.set_last_char(self.last_char);
 
@@ -299,7 +301,7 @@ impl Default for CPU {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cpu_enum::{DataOpcode, LDMCode, ShiftType}, memory::Register};
+    use crate::{cpu_enum::{DataOpcode, LDMCode, ShiftType, InstrType}, memory::Register};
 
     use super::*;
 

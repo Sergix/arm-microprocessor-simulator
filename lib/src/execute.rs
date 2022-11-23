@@ -1,3 +1,4 @@
+use log::trace;
 use tokio::sync::MutexGuard;
 
 use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode}, util};
@@ -467,12 +468,20 @@ pub fn instr_ldrhstrh_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_loc
 
 pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
     if instr.get_l_bit().unwrap() {
-        let address_after_branch = registers_lock.get_pc() + 4;
+        let address_after_branch = registers_lock.get_pc_current_address() + 4;
         registers_lock.set_reg_register(Register::r14, address_after_branch);
     }
 
-    // TODO: subtract 4?
-    let target_address: Word = (registers_lock.get_pc() as i32 + instr.get_offset().unwrap() - 4) as Word;
+    // increment by an extra 4 bytes because:
+    // - CPU fetch
+    // - CPU decode
+    // - CPU execute branch instruction
+    //   - go to target address
+    // - CPU increments PC by 4
+    // -> CPU only increments 1 instruction ahead
+    // => need to increment by extra 4 bytes here to ensure CPU PC is two instructions ahead
+    let target_address: Word = (instr.get_pc_address() as i32 + instr.get_offset().unwrap() + 4) as Word;
+    trace!("instr_b: {}pc {}offset {}target", instr.get_pc_address(), instr.get_offset().unwrap(), target_address);
     registers_lock.set_pc(target_address);
 
     registers_lock.get_pc()
@@ -481,6 +490,7 @@ pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
 pub fn instr_bx(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
 
+    // TODO: test to ensure CPU branches to proper PC address
     registers_lock.set_t_flag(rm & 1 != 0);
     registers_lock.set_pc(rm & 0xFFFFFFFE);
 
@@ -545,7 +555,7 @@ pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
 pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, _instr: Instruction) -> Word {
     // TODO: fill in rest of instruction
     // https://protect.bju.edu/cps/courses/cps310/lectures/lecture11/
-    registers_lock.set_cpsr_mode(Mode::Supervisor);
+    registers_lock.set_cpsr_mode(Mode::SVC);
     registers_lock.set_cpsr_flag(5, false); // ARM state
     registers_lock.set_cpsr_flag(7, true);  // disable interrupts
     registers_lock.set_pc(0x8);
@@ -608,5 +618,9 @@ pub fn instr_msr_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut M
 pub fn instr_msr_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
     let operand = registers_lock.get_reg_register(instr.get_rm().unwrap());
     instr_msr(registers_lock, instr, operand);
+    0
+}
+
+pub fn instr_nop(_ram_lock: &mut MutexGuard<'_, RAM>, _registers_lock: &mut MutexGuard<'_, Registers>, _instr: Instruction) -> Word {
     0
 }

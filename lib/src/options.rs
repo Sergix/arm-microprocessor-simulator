@@ -5,7 +5,8 @@ use log::{trace, error};
 pub struct Options {
     pub memory_size: usize,
     pub elf_file: String,
-    pub exec: bool
+    pub exec: bool,
+    pub traceall: bool
 }
 
 impl Options {
@@ -85,6 +86,20 @@ impl Options {
                 false
             }
         };
+
+        self.exec = match matches.args.get("traceall") {
+            Some(arg) => {
+                if arg.occurrences == 0 {
+                    false
+                } else {
+                    trace!("parse: traceall enabled");
+                    true
+                }
+            }
+            None => {
+                false
+            }
+        };
     }
 }
 
@@ -93,7 +108,8 @@ impl Default for Options {
         Options {
             memory_size: memory::DEFAULT_MEMORY_SIZE,
             elf_file: String::new(),
-            exec: false
+            exec: false,
+            traceall: false
         }
     }
 }

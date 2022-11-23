@@ -121,11 +121,17 @@ impl fmt::Display for Condition {
 
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug, serde::Serialize)]
 pub enum Mode {
-    User       = 0b10000,
-    FIQ        = 0b10001,
-    IRQ        = 0b10010,
-    Supervisor = 0b10011,
-    Abort      = 0b10111,
-    Undefined  = 0b11011,
-    System     = 0b11111
+    USR = 0b10000,
+    FIQ = 0b10001,
+    IRQ = 0b10010,
+    SVC = 0b10011,
+    ABT = 0b10111,
+    UND = 0b11011,
+    SYS = 0b11111
+}
+
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }

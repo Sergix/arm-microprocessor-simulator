@@ -324,7 +324,7 @@ impl Registers {
         }
 
         match self.get_cpsr_mode() {
-            Mode::Supervisor => {
+            Mode::SVC => {
                 if index == 13 || index == 14 {
                     index + MODE_OFFSET_SVC
                 } else {
@@ -489,7 +489,7 @@ impl Registers {
 
     pub fn get_spsr(&mut self) -> Word {
         match self.get_cpsr_mode() {
-            Mode::Supervisor => self.read_word(SPSR_SVC_ADDR),
+            Mode::SVC => self.read_word(SPSR_SVC_ADDR),
             Mode::IRQ => self.read_word(SPSR_IRQ_ADDR),
             _ => {
                 // TODO
@@ -500,7 +500,7 @@ impl Registers {
 
     pub fn set_spsr(&mut self, value: Word) {
         match self.get_cpsr_mode() {
-            Mode::Supervisor => self.write_word(SPSR_SVC_ADDR, value),
+            Mode::SVC => self.write_word(SPSR_SVC_ADDR, value),
             Mode::IRQ => self.write_word(SPSR_IRQ_ADDR, value),
             _ => {
                 // TODO
@@ -511,7 +511,7 @@ impl Registers {
 
     pub fn current_mode_has_spsr(&mut self) -> bool {
         match self.get_cpsr_mode() {
-            Mode::Supervisor => true,
+            Mode::SVC => true,
             Mode::IRQ => true,
             _ => false
         }

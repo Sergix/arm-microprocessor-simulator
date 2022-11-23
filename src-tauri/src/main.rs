@@ -24,6 +24,7 @@ use lib::cpu;
 use lib::state::CPUState;
 use lib::state::OptionsState;
 use lib::state::RAMState;
+use lib::state::TraceFileState;
 use lib::trace;
 use log::trace;
 use tauri::{async_runtime::{Mutex, spawn}, Manager};
@@ -77,8 +78,14 @@ fn main() {
                 let memory: RAMState = handle.state();
                 let mut memory_lock = memory.blocking_lock();
 
+                let trace: TraceFileState = handle.state();
+                let mut trace_lock = trace.blocking_lock();
+
                 // enable CPU step tracing if --exec is provided and an elf-file is provided
                 if opts_lock.exec && !opts_lock.elf_file.is_empty() { cpu_lock.toggle_trace(); }
+
+                // enable traceall if option enabled
+                if opts_lock.traceall { trace_lock.set_traceall(); }
                 
                 // create RAM using memsize
                 memory_lock.size = opts_lock.memory_size;
@@ -102,7 +109,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            terminal_cmd::cmd_terminal_input,
+            terminal_cmd::cmd_terminal_input_interrupt,
             cpu_cmd::cmd_get_cpu,
             loader_cmd::cmd_get_elf,
             loader_cmd::cmd_load_elf,

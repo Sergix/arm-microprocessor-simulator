@@ -63,6 +63,7 @@ const Toolbar: Component = () => {
     const reset = async () => {
         setResetting(true)
         await invoke('cmd_reset', { filename: filename() })
+        setRunning(false)
         setResetting(false)
     }
 

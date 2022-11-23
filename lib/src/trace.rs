@@ -6,10 +6,15 @@ use crate::{memory::{Checksum, Word, Byte}, cpu_enum::Mode};
 const TRACE_LOG_FILENAME: &str = "trace.log";
 
 pub struct TraceFile {
-    f: Option<File>
+    f: Option<File>,
+    traceall: bool
 }
 
 impl TraceFile {
+    pub fn set_traceall(&mut self) {
+        self.traceall = true;
+    }
+
     pub fn clear_trace_file(&self) -> Result<(), std::io::Error> {
         fs::write(TRACE_LOG_FILENAME, "")
     }
@@ -29,8 +34,13 @@ impl TraceFile {
         self.f = None;
     }
     
-    pub fn append_trace_file_line(&mut self, trace_step: Word, pc: Word, checksum: Checksum, n: Byte, c: Byte, z: Byte, v: Byte, _mode: Mode, regs: Vec<Word>) {        
+    pub fn append_trace_file_line(&mut self, trace_step: Word, pc: Word, checksum: Checksum, n: Byte, c: Byte, z: Byte, v: Byte, mode: Mode, regs: Vec<Word>) {        
         if self.f.is_none() {
+            return
+        }
+
+        // if --traceall is disabled, only log SYS instructions
+        if !self.traceall && mode != Mode::SYS {
             return
         }
         
@@ -45,12 +55,12 @@ impl TraceFile {
             .collect::<Vec<String>>()
             .join(" ");
 
-        writeln!(self.f.as_ref().unwrap(), "{:06} {:08X} {:08X} {}{}{}{} {} {} ", trace_step, pc, checksum, n, c, z, v, "SYS", regs_string).unwrap();
+        writeln!(self.f.as_ref().unwrap(), "{:06} {:08X} {:08X} {}{}{}{} {} {} ", trace_step, pc, checksum, n, c, z, v, mode.to_string(), regs_string).unwrap();
     }
 }
 
 impl Default for TraceFile {
     fn default() -> Self {
-        Self { f: None }
+        Self { f: None, traceall: false }
     }
 }

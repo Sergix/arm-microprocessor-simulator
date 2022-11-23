@@ -3,7 +3,7 @@ use lib::state::RegistersState;
 use log::trace;
 
 #[tauri::command]
-pub async fn cmd_terminal_input(last_char: char, cpu_state: CPUState<'_>, _registers_state: RegistersState<'_>) -> Result<(), ()> {
+pub async fn cmd_terminal_input_interrupt(last_char: char, cpu_state: CPUState<'_>, _registers_state: RegistersState<'_>) -> Result<(), ()> {
     trace!("cmd_terminal_input: user terminal input, setting CPU IRQ flag...");
     
     let cpu_lock = &mut cpu_state.lock().await;

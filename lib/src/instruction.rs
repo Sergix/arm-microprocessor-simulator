@@ -1,7 +1,7 @@
 use tokio::sync::MutexGuard;
 
 use crate::{execute, util};
-use crate::memory::{Byte, Word, Register, RAM, Registers};
+use crate::memory::{Byte, Word, Register, RAM, Registers, AddressSize};
 use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType, LSH, LDMCode};
 
 // This is the parent trait that contains all the default implementations
@@ -82,6 +82,9 @@ pub trait TInstruction {
 
     fn get_field_mask(&self) -> Option<Byte>;
     fn set_field_mask(&mut self, field_mask: Byte);
+
+    fn get_pc_address(&self) -> AddressSize;
+    fn set_pc_address(&mut self, address: AddressSize);
 
     // shift value in immediate_shift field by shift amount
     // https://developer.arm.com/documentation/dui0489/i/arm-and-thumb-instructions/operand2-as-a-register-with-optional-shift?lang=en
@@ -239,7 +242,8 @@ pub struct Instruction {
     reg_list: Option<Word>,
     last_char: Option<char>,
     gpregister: Option<bool>,
-    field_mask: Option<Byte>
+    field_mask: Option<Byte>,
+    pc_address: Word,
 }
 
 impl TInstruction for Instruction {
@@ -272,6 +276,7 @@ impl TInstruction for Instruction {
             last_char: None,
             gpregister: None,
             field_mask: None,
+            pc_address: 0
         }
     }
 
@@ -519,6 +524,14 @@ impl TInstruction for Instruction {
     fn set_field_mask(&mut self, field_mask: Byte) {
         self.field_mask = Some(field_mask);
     }
+
+    fn get_pc_address(&self) -> AddressSize {
+        self.pc_address
+    }
+
+    fn set_pc_address(&mut self, address: AddressSize) {
+        self.pc_address = address;
+    }
 }
 
 /*
@@ -759,9 +772,9 @@ pub fn instr_b(condition: Word, l_bit: Word, offset: Word) -> Instruction {
     // if top bit is 1, extend
     instr.set_offset(
         if util::test_bit(offset, 23) {
-            (((offset | 0x3f000000) << 2) + 8) as i32
+            ((offset | 0x3f000000) << 2) as i32
         } else {
-            ((offset << 2) + 8) as i32
+            (offset << 2) as i32
         }
     );
     instr.set_execute(execute::instr_b);
@@ -845,6 +858,14 @@ pub fn instr_msr_reg(condition: Word, gpregister: Word, field_mask: Word, rm: Wo
     instr.set_field_mask(field_mask as Byte);
     instr.set_rm(rm);
     instr.set_execute(execute::instr_msr_reg);
+
+    instr
+}
+
+pub fn instr_nop() -> Instruction {
+    let mut instr = Instruction::new(InstrType::NOP);
+
+    instr.set_execute(execute::instr_nop);
 
     instr
 }

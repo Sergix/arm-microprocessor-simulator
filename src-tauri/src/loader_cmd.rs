@@ -96,10 +96,17 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         ram_lock.checksum = ram_lock.calculate_checksum();
         ram_lock.loaded = true;
         ram_lock.endianness = elf_data.1;
-        registers_lock.set_cpsr_mode(Mode::System);
-        registers_lock.set_pc(elf_data.0 + 8);
-        registers_lock.set_reg_register(Register::r13, 0x7000);
         registers_lock.clear_nzcv();
+        registers_lock.set_cpsr_mode(Mode::SVC);
+
+        // branch PC to address 0 if program is an OS (first memory location is nonzero)
+        if ram_lock.get_memory_array()[0] != 0 {
+            registers_lock.set_pc(8);
+        } else {
+            registers_lock.set_cpsr_mode(Mode::SYS);
+            registers_lock.set_pc(elf_data.0 + 8);
+            registers_lock.set_reg_register(Register::r13, 0x7000);
+        }
 
         // notify the frontend that an ELF binary is successfully loaded
         app_handle.emit_all("elf_load", ELFPayload {

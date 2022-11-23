@@ -22,7 +22,7 @@
 - [x] when attempt to read from 0x100001, get the last stored char from frontend
   - CPU injects last read char into each instruction so it can be accessed without threads
 - [x] when attempt to write to 0x100000, send last char to terminal window\
-- [ ] when resetting the CPU, set Supervisor mode, check for non-zero number in first byte of RAM and set PC to 0
+- [-] when resetting the CPU, set Supervisor mode, check for non-zero number in first byte of RAM and set PC to 0
 
 ### Instructions  
 
@@ -48,5 +48,6 @@
 
 ### Logs
 
-- [ ] trace logging should output the actual system mode
-- [ ] flag for logging exceptions or just normal (SYS mode) instructions
+- [x] trace logging should output the actual system mode
+- [-] flag for logging exceptions or just normal (SYS mode) instructions
+  - [ ] suppress during reset handler

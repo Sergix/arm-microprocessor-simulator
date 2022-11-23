@@ -1,3 +1,4 @@
+use lib::instruction::TInstruction;
 use lib::memory::{Word, Memory};
 use lib::state::{RegistersState, CPUState, RAMState};
 use log::trace;
@@ -30,7 +31,9 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
     let mut address = pc.checked_sub(12).unwrap_or(0);
     loop {
         let instr_raw = ram_lock.read_word(address);
-        let instr_str = cpu_lock.decode(instr_raw).to_string();
+        let mut instr = cpu_lock.decode(instr_raw);
+        instr.set_pc_address(address + 8);
+        let instr_str = instr.to_string();
         let breakpoint_set = cpu_lock.is_breakpoint(&address);
         disassembly_instructions.push((breakpoint_set, address, instr_raw, instr_str));
         

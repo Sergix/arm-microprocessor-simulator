@@ -6,12 +6,11 @@ import { trace } from 'tauri-plugin-log-api'
 const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
     const [output, setOutput] = createSignal("")
     const [prompt, setPrompt] = createSignal(false)
+    const [promptInput, setPromptInput] = createSignal("")
     const [promptLen, setPromptLen] = createSignal(0)
-    const [lastChar, setLastChar] = createSignal("")
 
-    const emitInput = (e: InputEvent) => {
-        setLastChar(e.data || "")
-        trace(lastChar().charCodeAt(0).toString())
+    const emitInputInterrupt = (e: InputEvent) => {
+        trace(`SolidJS[TerminalPanel.emitInputInterrupt] sending char ${e.data} to IRQ interrupt line`)
 
         let last_char: number = 0
 
@@ -21,27 +20,38 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
             last_char = 8 // backspace
         }
 
-        invoke('cmd_terminal_input', { last_char })
+        invoke('cmd_terminal_input_interrupt', { last_char })
+    }
+
+    const emitPromptInput = (e: SubmitEvent) => {
+        trace(`SolidJS[TerminalPanel.emitPromptInput] sending prompt input "${promptInput()}" to CPU`)
+
+        invoke('cmd_terminal_prompt_input', { prompt_input: promptInput() })
     }
 
     listen('cmd_terminal_prompt', ({ payload }: { payload: ITerminalPayload }) => {
+        trace('SolidJS[TerminalPanel.listen] prompting user for input')
         setPrompt(true)
         setPromptLen(payload.prompt_bytes)
         setPrompt(true)
     })
 
     listen('cmd_terminal_append', ({ payload }: { payload: ITerminalPayload }) => {
+        trace(`SolidJS[TerminalPanel.listen] appending char ${payload.char} to terminal`)
         setOutput(output() + payload.char)
     })
 
     return (
         <section class="w-full">
             <h3>Terminal</h3>
-            <textarea class="w-full h-52 resize-none rounded-sm bg-slate-800 p-2 focus:shadow-lg transition-all font-mono" onInput={emitInput}>
+            <textarea class="w-full h-52 resize-none rounded-sm bg-slate-800 p-2 focus:shadow-lg transition-all font-mono" onInput={emitInputInterrupt}>
                 {output()}
             </textarea>
             <Show when={prompt()}>
-                <input type="text" placeholder='>' maxlength={promptLen()}/>
+                <form onSubmit={emitPromptInput}>
+                    <input type="text" placeholder='>' maxlength={promptLen()} onInput={(e) => setPromptInput((e.target as HTMLInputElement)?.value || "")}/>
+                    <button type="submit">ENTER</button>
+                </form>
             </Show>
         </section>
     )

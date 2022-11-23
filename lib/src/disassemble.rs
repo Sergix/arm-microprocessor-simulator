@@ -1,5 +1,7 @@
 use std::fmt;
 
+use log::trace;
+
 use crate::{cpu_enum::{Condition, ShiftType, LDMCode, InstrType, DataOpcode}, memory::{Word, Register}, instruction::{Instruction, TInstruction}, util};
 
 fn get_s_bit_str(s_bit: bool) -> String {
@@ -122,9 +124,11 @@ fn get_fields_str(field_mask: Word) -> String {
 impl fmt::Display for Instruction {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.get_type() {
+            InstrType::NOP => {
+                fmt.write_str("nop")?;
+            },
             InstrType::DataImm => {
                 // mov rd, #imm8
-
                 // optional operand2
                 let rn = match self.get_data_opcode().unwrap() {
                     DataOpcode::MOV | DataOpcode::MVN => "".to_string(), 
@@ -267,12 +271,14 @@ impl fmt::Display for Instruction {
                 // ex: ball #20
                 //     {}{} {} 
 
+                let target_address = self.get_pc_address() as i32 + self.get_offset().unwrap();
+
                 fmt.write_str(
                     format!(
-                        "b{}{} #{}",
+                        "b{}{} {:X}",
                         get_condition_str(self.get_condition()),
                         get_l_bit_str(self.get_l_bit().unwrap()),
-                        self.get_offset().unwrap().to_string()
+                        target_address
                     ).as_str()
                 )?;
             },
@@ -442,9 +448,6 @@ impl fmt::Display for Instruction {
                         self.get_swi().unwrap().to_string(),
                     ).as_str()
                 )?;
-            },
-            InstrType::NOP => {
-                fmt.write_str("nop")?;
             },
             InstrType::MSRImm => {
                 // ex: msral CPSR_fields #imm
