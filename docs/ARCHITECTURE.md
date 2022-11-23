@@ -27,3 +27,7 @@ Thread locks should be dropped as quickly as possible within its context, especi
 ## Instruction Decoding
 
 Instruction decoding uses one primary `Instruction` class since structs cannot be inherited.
+
+## Banked Registers
+
+Since this program only supports 3 modes (SYS, SVC, IRQ) with 6 extra banked registers (SVC r13/r14, IRQ r13/r14, SPSR_svc, SPSR_irq), banked registers are simply an extension of the register memory array. Constant values and methods are provided in `lib::memory` and `lib::memory::Registers` to calculate the appropriate indices for those registers when needed.

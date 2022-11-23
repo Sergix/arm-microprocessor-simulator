@@ -118,10 +118,13 @@ impl CPU {
             "cccc_000_1_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_pre(c, u, w, l, n, d, s, m),
             "cccc_000_0_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_post(c, u, w, l, n, d, s, m),
             "cccc_101_l_oooooooooooooooooooooooo"           => instr_b(c, l, o),
-            "cccc_00010010_????_????_????_0001_mmmm"        => instr_bx(c, m),
+            "cccc_00010010_111111111111_0001_mmmm"          => instr_bx(c, m),
             "cccc_100_uuswl_nnnn_rrrrrrrrrrrrrrrr"          => instr_ldmstm(c, u, s, w, l, n, r),
             "cccc_000_0000_s_dddd_0000_ssss_1001_mmmm"      => instr_mul(c, s, d, s, m),
             "cccc_1111_ssssssssssssssssssssssss"            => instr_swi(c, s),
+            "cccc_00010_r_00_1111_dddd_000000000000"        => instr_mrs(c, r, d),
+            "cccc_00110_r_10_ffff_1111_rrrr_iiiiiiii"       => instr_msr_imm(c, r, f, r, i),
+            "cccc_00010_r_10_ffff_1111_00000000_mmmm"       => instr_msr_reg(c, r, f, m),
             "????????????????????????????????"              => Instruction::new(InstrType::NOP)
         }
     }
@@ -193,9 +196,6 @@ impl CPU {
 
             // stop when HLT instruction or breakpoint is reached
             if self.step(app_handle.clone()).await { break }
-
-            // pause for 1/4 sec
-            // thread::sleep(time::Duration::from_millis(250));
         }
 
         trace!("run: cpu stopped");
@@ -273,18 +273,12 @@ impl CPU {
         );
         self.trace_step += 1;
 
-        // halt if SWI instruction was executed (check if Supervisor mode)
-        // TODO: remove in Phase 4
-        if registers_lock.get_cpsr_mode() == Mode::Supervisor {
-            self.stop(app_handle.clone()).await;
-            return true;
-        }
-
         // proccess IRQ interrupt from IRQ input line
         // only when IRQ interrupts are not disabled
         if self.irq && !registers_lock.get_i_flag() {
             self.irq = false;
             registers_lock.set_i_flag(false);
+            // TODO: process the exception/interrupt
         }
 
         return false;

@@ -1,7 +1,7 @@
 use tokio::sync::MutexGuard;
 
-use crate::execute;
-use crate::memory::{Byte, Word, Register, RAM, Registers, Memory};
+use crate::{execute, util};
+use crate::memory::{Byte, Word, Register, RAM, Registers};
 use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType, LSH, LDMCode};
 
 // This is the parent trait that contains all the default implementations
@@ -76,43 +76,50 @@ pub trait TInstruction {
     fn get_last_char(&self) -> Option<char>;
     fn set_last_char(&mut self, last_char: char);
 
+    // true for SPSR, false for CPSR
+    fn get_gpregister(&self) -> Option<bool>;
+    fn set_gpregister(&mut self, gpregister: bool);
+
+    fn get_field_mask(&self) -> Option<Byte>;
+    fn set_field_mask(&mut self, field_mask: Byte);
+
     // shift value in immediate_shift field by shift amount
     // https://developer.arm.com/documentation/dui0489/i/arm-and-thumb-instructions/operand2-as-a-register-with-optional-shift?lang=en
     // ARM Manual A5.1
     fn shift_value_by_imm(rm: Word, shift_imm: Word, shift_type: ShiftType, c_flag: Byte) -> (Word, Word) {
-        let rm_msb = (rm >> 31) & 1;
+        let rm_msb = util::get_bit(rm, 31);
         match shift_type {
             ShiftType::LSL => {
                 if shift_imm == 0 {
                     (rm, c_flag as Word)
                 } else {
-                    (rm << shift_imm, (rm >> (32 - shift_imm)) & 1)
+                    (rm << shift_imm, util::get_bit(rm, 32 - shift_imm))
                 }
             },
             ShiftType::LSR => {
                 if shift_imm == 0 {
                     (0, rm_msb)
                 } else {
-                    (rm >> shift_imm, (rm >> (shift_imm - 1)) & 1)
+                    (rm >> shift_imm, util::get_bit(rm, shift_imm - 1))
                 }
             },
             ShiftType::ASR => {
                 if shift_imm == 0 {
-                    if (rm >> 31) & 1 == 0 {
+                    if rm_msb == 0 {
                         (0, rm_msb)
                     } else {
                         (0xffffffff, rm_msb)
                     }
                 } else {
                     // cast to i32 to force ASR in Rust
-                    (((rm as i32) >> shift_imm) as Word, (rm >> (shift_imm - 1)) & 1)
+                    (((rm as i32) >> shift_imm) as Word, util::get_bit(rm, shift_imm - 1))
                 }
             },
             ShiftType::ROR => {
                 if shift_imm == 0 {
-                    ((c_flag << 31) as Word | (rm >> 1), rm & 1)
+                    (c_flag.checked_shl(31).unwrap_or(0) as Word | (rm >> 1), rm & 1)
                 } else {
-                    (rm.rotate_right(shift_imm), (rm >> (shift_imm - 1)) & 1)
+                    (rm.rotate_right(shift_imm), util::get_bit(rm, shift_imm - 1))
                 }
             }
         }
@@ -121,14 +128,14 @@ pub trait TInstruction {
     fn shift_value_by_reg(rm: Word, rs: Word, shift_type: ShiftType, c_flag: Byte) -> (Word, Word) {
         let rs_lsb = rs & 0xff;
         let rs_lsn = rs & 0xf;
-        let rm_msb = (rm >> 31) & 1;
+        let rm_msb = util::get_bit(rm, 31);
 
         match shift_type {
             ShiftType::LSL => {
                 if rs_lsb == 0 {
                     (rm, c_flag as Word)
                 } else if rs_lsb < 32 {
-                    (rm << rs_lsb, (rm >> (32 - rs_lsb)) & 1)
+                    (rm << rs_lsb, util::get_bit(rm, 32 - rs_lsb))
                 } else if rs_lsb == 32 {
                     (0, rm & 1)
                 } else {
@@ -139,7 +146,7 @@ pub trait TInstruction {
                 if rs_lsb == 0 {
                     (rm, c_flag as Word)
                 } else if rs_lsb < 32 {
-                    (rm >> rs_lsb, (rm >> (rs_lsb - 1)) & 1)
+                    (rm >> rs_lsb, util::get_bit(rm, rs_lsb - 1))
                 } else if rs_lsb == 32 {
                     (0, rm_msb)
                 } else {
@@ -151,7 +158,7 @@ pub trait TInstruction {
                     (rm, c_flag as Word)
                 } else if rs_lsb < 32 {
                     // cast to i32 to force ASR in Rust
-                    (((rm as i32) >> rs_lsb) as Word, (rm >> (rs_lsb - 1)) & 1)
+                    (((rm as i32) >> rs_lsb) as Word, util::get_bit(rm, rs_lsb - 1))
                 } else {
                     if rm_msb == 0 {
                         (0, rm_msb)
@@ -166,7 +173,7 @@ pub trait TInstruction {
                 } else if rs_lsn == 0 {
                     (rm, rm_msb)
                 } else {
-                    (rm.rotate_right(rs), (rm >> (rs_lsn - 1)) & 1)
+                    (rm.rotate_right(rs), util::get_bit(rm, rs_lsn - 1))
                 }
             }
         }
@@ -181,7 +188,7 @@ pub trait TInstruction {
         if rotate_imm == 0 {
             (shifter_operand, c_flag as Word)
         } else {
-            (shifter_operand, (shifter_operand >> 31) & 1)
+            (shifter_operand, util::get_bit(shifter_operand, 31))
         }
     }
 
@@ -230,7 +237,9 @@ pub struct Instruction {
     lsh: Option<LSH>,
     ldm: Option<LDMCode>,
     reg_list: Option<Word>,
-    last_char: Option<char>
+    last_char: Option<char>,
+    gpregister: Option<bool>,
+    field_mask: Option<Byte>
 }
 
 impl TInstruction for Instruction {
@@ -260,7 +269,9 @@ impl TInstruction for Instruction {
             lsh: None,
             ldm: None,
             reg_list: None,
-            last_char: None
+            last_char: None,
+            gpregister: None,
+            field_mask: None,
         }
     }
 
@@ -491,6 +502,22 @@ impl TInstruction for Instruction {
 
     fn set_last_char(&mut self, last_char: char) {
         self.last_char = Some(last_char);
+    }
+
+    fn get_gpregister(&self) -> Option<bool> {
+        self.gpregister
+    }
+
+    fn set_gpregister(&mut self, gpregister: bool) {
+        self.gpregister = Some(gpregister);
+    }
+
+    fn get_field_mask(&self) -> Option<Byte> {
+        self.field_mask
+    }
+
+    fn set_field_mask(&mut self, field_mask: Byte) {
+        self.field_mask = Some(field_mask);
     }
 }
 
@@ -727,7 +754,16 @@ pub fn instr_b(condition: Word, l_bit: Word, offset: Word) -> Instruction {
     let mut instr = Instruction::new(InstrType::B);
     instr.set_condition(condition); 
     instr.set_l_bit(l_bit);
-    instr.set_offset(((offset as i32) << 2) + 8);
+
+    // sign extend manually
+    // if top bit is 1, extend
+    instr.set_offset(
+        if util::test_bit(offset, 23) {
+            (((offset | 0x3f000000) << 2) + 8) as i32
+        } else {
+            ((offset << 2) + 8) as i32
+        }
+    );
     instr.set_execute(execute::instr_b);
 
     instr
@@ -773,6 +809,42 @@ pub fn instr_swi(condition: Word, swi: Word) -> Instruction {
     instr.set_condition(condition);
     instr.set_swi(swi);
     instr.set_execute(execute::instr_swi);
+
+    instr
+}
+
+pub fn instr_mrs(condition: Word, gpregister: Word, rd: Word) -> Instruction {
+    let mut instr = Instruction::new(InstrType::MRS);
+
+    instr.set_condition(condition);
+    instr.set_gpregister(gpregister != 0);
+    instr.set_rd(rd);
+    instr.set_execute(execute::instr_mrs);
+
+    instr
+}
+
+pub fn instr_msr_imm(condition: Word, gpregister: Word, field_mask: Word, rotate_imm: Word, imm: Word) -> Instruction {
+    let mut instr = Instruction::new(InstrType::MSRImm);
+
+    instr.set_condition(condition);
+    instr.set_gpregister(gpregister != 0);
+    instr.set_field_mask(field_mask as Byte);
+    instr.set_rotate(rotate_imm as Byte);
+    instr.set_imm(imm as Byte);
+    instr.set_execute(execute::instr_msr_imm);
+
+    instr
+}
+
+pub fn instr_msr_reg(condition: Word, gpregister: Word, field_mask: Word, rm: Word) -> Instruction {
+    let mut instr = Instruction::new(InstrType::MSRReg);
+
+    instr.set_condition(condition);
+    instr.set_gpregister(gpregister != 0);
+    instr.set_field_mask(field_mask as Byte);
+    instr.set_rm(rm);
+    instr.set_execute(execute::instr_msr_reg);
 
     instr
 }

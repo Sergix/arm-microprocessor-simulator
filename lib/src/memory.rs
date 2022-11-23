@@ -14,9 +14,16 @@ pub type Checksum = u32;
 
 pub const DEFAULT_MEMORY_SIZE: usize = 32768;
 
-pub const NUM_REGISTERS: usize = 17; // r0...r15, 16 is CPSR
+pub const NUM_REGISTERS: usize = 23; // r0...r15, CPSR, SP_svc, LR_svc, SPSR_svc, SP_irq, LR_irq, SPSR_irq
 pub const REGISTER_BYTES: usize = 4; // 4byte = 32bit
-pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as AddressSize;
+
+pub const CPSR_ADDR: AddressSize = (16 * REGISTER_BYTES) as AddressSize;
+pub const SPSR_SVC_ADDR: AddressSize = (19 * REGISTER_BYTES) as AddressSize;
+pub const SPSR_IRQ_ADDR: AddressSize = (22 * REGISTER_BYTES) as AddressSize;
+
+// used when calculating r13 and r14 in non-system modes to properly index the register array
+pub const MODE_OFFSET_SVC: usize = 4;
+pub const MODE_OFFSET_IRQ: usize = 7;
 
 pub const DISPLAY_ADDR: AddressSize  = 0x100000;
 pub const KEYBOARD_ADDR: AddressSize = 0x100001;
@@ -310,12 +317,38 @@ pub struct Registers {
 }
 
 impl Registers {
+    // fix indices when attempting to access banked registers on non-system modes
+    pub fn get_register_mode_index(&mut self, index: usize) -> usize {
+        if index > 15 {
+            panic!("Registers[get_register_mode_index]: register index out of range");
+        }
+
+        match self.get_cpsr_mode() {
+            Mode::Supervisor => {
+                if index == 13 || index == 14 {
+                    index + MODE_OFFSET_SVC
+                } else {
+                    index
+                }
+            },
+            Mode::IRQ => {
+                if index == 13 || index == 14 {
+                    index + MODE_OFFSET_IRQ
+                } else {
+                    index
+                }
+            },
+            _ => index
+        }
+    }
+
     pub fn set_register(&mut self, index: usize, value: Word) {
         if index > 15 {
             panic!("Registers[set_register]: register index out of range");
         }
 
-        self.write_word((index * 4) as AddressSize, value)
+        let address = (self.get_register_mode_index(index) * 4) as AddressSize;
+        self.write_word(address, value)
     }
 
     pub fn set_reg_register(&mut self, reg: Register, value: Word) {
@@ -327,7 +360,8 @@ impl Registers {
             panic!("Registers[get_register]: register index out of range");
         }
 
-        self.read_word((index * 4) as AddressSize)
+        let address = (self.get_register_mode_index(index) * 4) as AddressSize;
+        self.read_word(address)
     }
 
     pub fn get_reg_register(&mut self, reg: Register) -> Word {
@@ -337,8 +371,8 @@ impl Registers {
     pub fn get_all(&mut self) -> Vec<Word> {
         let mut regs: Vec<Word> = vec![0; 0];
         
-        // skip CPSR (NUM_REGISTERS - 1)
-        for i in 0..(NUM_REGISTERS - 1) {
+        // r0..r15
+        for i in 0..=15 {
             regs.push(self.get_register(i));
         }
         regs
@@ -367,6 +401,10 @@ impl Registers {
         self.read_word(CPSR_ADDR)
     }
 
+    pub fn set_cpsr(&mut self, value: Word) {
+        self.write_word(CPSR_ADDR, value);
+    }
+
     pub fn set_cpsr_flag(&mut self, bit: u8, flag: bool) {
         self.set_flag(CPSR_ADDR, bit, flag)
     }
@@ -377,12 +415,14 @@ impl Registers {
 
     pub fn get_cpsr_mode(&mut self) -> Mode {
         let mode_bits = Registers::extract_bits(self.get_cpsr(), 0, 4);
-        log::trace!("get_cpsr_mode: {} {}", self.get_cpsr(), mode_bits);
         let mode: Mode = num::FromPrimitive::from_u32(mode_bits).unwrap();
         mode
     }
 
     pub fn set_cpsr_mode(&mut self, mode: Mode) {
+        // TODO: swap banked registers
+        log::trace!("set_cpsr_mode: swapping banked registers {}mode", self.get_cpsr());
+
         let mode_bits = mode as Byte;
         let cleared_mode_byte = self.read_byte(CPSR_ADDR + 3) & 0b11100000;
         self.write_byte(CPSR_ADDR + 3, cleared_mode_byte | mode_bits);
@@ -445,6 +485,36 @@ impl Registers {
 
     pub fn get_cpsr_control_byte(&mut self) -> Byte {
         self.read_byte(CPSR_ADDR + 3)
+    }
+
+    pub fn get_spsr(&mut self) -> Word {
+        match self.get_cpsr_mode() {
+            Mode::Supervisor => self.read_word(SPSR_SVC_ADDR),
+            Mode::IRQ => self.read_word(SPSR_IRQ_ADDR),
+            _ => {
+                // TODO
+                todo!("throw? or return CPSR?");
+            }
+        }
+    }
+
+    pub fn set_spsr(&mut self, value: Word) {
+        match self.get_cpsr_mode() {
+            Mode::Supervisor => self.write_word(SPSR_SVC_ADDR, value),
+            Mode::IRQ => self.write_word(SPSR_IRQ_ADDR, value),
+            _ => {
+                // TODO
+                todo!("throw? or store in CPSR?");
+            }
+        }
+    }
+
+    pub fn current_mode_has_spsr(&mut self) -> bool {
+        match self.get_cpsr_mode() {
+            Mode::Supervisor => true,
+            Mode::IRQ => true,
+            _ => false
+        }
     }
 
     pub fn get_nzcv(&mut self) -> Byte {

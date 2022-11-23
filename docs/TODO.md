@@ -11,7 +11,8 @@
 
 ### CPU/Registers
 
-- [ ] swap in banked registers when the simulator switches CPU modes
+- [x] swap in banked registers when the simulator switches CPU modes
+  - extend register array to include enough for each mode, and when reading/writing registers for R13/R14/CPSR ensure it writes to the correct register
 - [-] add CPU IRQ flag and test after each fetch-decode-execute to process exception
   - [x] only if CPSR interrupt flag is not disabled
   - [x] set CPSR I bit
@@ -20,7 +21,8 @@
 - [x] on keyboard event, set CPU IRQ flag
 - [x] when attempt to read from 0x100001, get the last stored char from frontend
   - CPU injects last read char into each instruction so it can be accessed without threads
-- [x] when attempt to write to 0x100000, send last char to terminal window
+- [x] when attempt to write to 0x100000, send last char to terminal window\
+- [ ] when resetting the CPU, set Supervisor mode, check for non-zero number in first byte of RAM and set PC to 0
 
 ### Instructions  
 
@@ -34,7 +36,7 @@
   - [ ] 0x6a -- readline; prompt in terminal window and wait for user input to read up to [r2] bytes, then write input to the address of r1
 - [x] B, BL, **BX**
   - [ ] have the imm displayed in the disassembly window be the address being jumped *to*, not the offset encoded
-- [ ] MOVS, MSR, MRS
+- [x] MOVS, MSR, MRS
 
 ### GUI
 

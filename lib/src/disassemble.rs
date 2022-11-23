@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{cpu_enum::{Condition, ShiftType, LDMCode, InstrType, DataOpcode}, memory::{Word, Register}, instruction::{Instruction, TInstruction}};
+use crate::{cpu_enum::{Condition, ShiftType, LDMCode, InstrType, DataOpcode}, memory::{Word, Register}, instruction::{Instruction, TInstruction}, util};
 
 fn get_s_bit_str(s_bit: bool) -> String {
     match s_bit {
@@ -94,6 +94,27 @@ fn get_ldm_code_str(ldm: LDMCode) -> String {
         LDMCode::DecBefore => "db".to_string(),
         LDMCode::IncBefore => "ib".to_string(),
     }
+}
+
+fn get_cpsr_spsr_str(gpregister: bool) -> String {
+    match gpregister {
+        true => "SPSR".to_string(),
+        false => "CPSR".to_string()
+    }
+}
+
+fn get_fields_str(field_mask: Word) -> String {
+    let mut str = "".to_string();
+    if util::test_bit(field_mask, 3) {
+        str.push('f');
+    } else if util::test_bit(field_mask, 2) {
+        str.push('s');
+    } else if util::test_bit(field_mask, 1) {
+        str.push('x');
+    } else if util::test_bit(field_mask, 0) {
+        str.push('c');
+    }
+    str
 }
 
 // formatted output for the instructions
@@ -255,6 +276,18 @@ impl fmt::Display for Instruction {
                     ).as_str()
                 )?;
             },
+            InstrType::BX => {
+                // ex: bxal r4
+                //       {} {} 
+
+                fmt.write_str(
+                    format!(
+                        "bx{} {}",
+                        get_condition_str(self.get_condition()),
+                        self.get_rm().unwrap().to_string()
+                    ).as_str()
+                )?;
+            },
             InstrType::LDRSTRShiftRegPost => {
                 // ex: ldralb  rd, [rn], rm, lsl -#8
                 //     {}{}{} {}, [{}], {},  {}
@@ -412,6 +445,47 @@ impl fmt::Display for Instruction {
             },
             InstrType::NOP => {
                 fmt.write_str("nop")?;
+            },
+            InstrType::MSRImm => {
+                // ex: msral CPSR_fields #imm
+                //        {} {}     {}    {}
+
+                fmt.write_str(
+                    format!(
+                        "msr{} {}_{} {}",
+                        get_condition_str(self.get_condition()),
+                        get_cpsr_spsr_str(self.get_gpregister().unwrap()),
+                        get_fields_str(self.get_field_mask().unwrap() as Word),
+                        get_imm_sign_str(self.get_imm().unwrap() as Word, true)
+                    ).as_str()
+                )?;
+            },
+            InstrType::MSRReg => {
+                // ex: msral CPSR_fc, rm
+                //        {} {}   {}  {}
+
+                fmt.write_str(
+                    format!(
+                        "msr{} {}_{}, {}",
+                        get_condition_str(self.get_condition()),
+                        get_cpsr_spsr_str(self.get_gpregister().unwrap()),
+                        get_fields_str(self.get_field_mask().unwrap() as Word),
+                        self.get_rm().unwrap().to_string()
+                    ).as_str()
+                )?;
+            },
+            InstrType::MRS => {
+                // ex: mrsal rd, CPSR
+                //        {} {}   {}
+
+                fmt.write_str(
+                    format!(
+                        "mrs{} {}, {}",
+                        get_condition_str(self.get_condition()),
+                        self.get_rd().unwrap().to_string(),
+                        get_cpsr_spsr_str(self.get_gpregister().unwrap())
+                    ).as_str()
+                )?;
             },
         };
         Ok(())

@@ -23,6 +23,9 @@ pub enum InstrType {
     SWI,
     MUL,
     NOP,
+    MSRImm,
+    MSRReg,
+    MRS
 }
 
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]

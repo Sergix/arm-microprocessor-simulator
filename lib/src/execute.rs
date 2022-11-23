@@ -1,6 +1,6 @@
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode}};
+use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode}, util};
 
 // this method matches all the data operations with their appropriate operation
 // the caller is expected to resolve the operand2 ahead of time; this function
@@ -8,14 +8,13 @@ use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEY
 fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, rn: Word, shifter_operand: Word, shifter_carry_out: Word) {
     // temp values so register_lock doesn't have to be moved
     let c_flag = registers_lock.get_c_flag();
-    let mut alu_out = 0;
 
     let rd: Option<Word> = match instr.get_data_opcode().unwrap() {
         DataOpcode::AND => {
             let rd = rn & shifter_operand;
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             }
             Some(rd)
         },
@@ -23,7 +22,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
             let rd = rn ^ shifter_operand;
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             }
             Some(rd)
         },
@@ -85,15 +84,20 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
             let rd = rn | shifter_operand;
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             }
             Some(rd)
         },
         DataOpcode::MOV => {
             let rd = shifter_operand;
 
-            if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+            if instr.get_s_bit().unwrap() && instr.get_rd().unwrap() == Register::r15 {
+                if registers_lock.current_mode_has_spsr() {
+                    let spsr: Word = registers_lock.get_spsr();
+                    registers_lock.set_cpsr(spsr);
+                }
+            } else if instr.get_s_bit().unwrap() {
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             }
             Some(rd)
         },
@@ -101,7 +105,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
             let rd = rn & !shifter_operand;
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             }
             Some(rd)
         },
@@ -109,7 +113,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
             let rd = !shifter_operand;
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             }
             Some(rd)
         },
@@ -118,34 +122,34 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
 
     if rd.is_some() {
         if instr.get_s_bit().unwrap() {
-            registers_lock.set_n_flag((rd.unwrap() >> 31) & 1 != 0);
+            registers_lock.set_n_flag(util::test_bit(rd.unwrap(), 31));
             registers_lock.set_z_flag(rd.unwrap() == 0);
         }
         registers_lock.set_reg_register(instr.get_rd().unwrap(), rd.unwrap());
     } else {
         match instr.get_data_opcode().unwrap() {
             DataOpcode::TST => {
-                alu_out = rn & shifter_operand;
-                registers_lock.set_n_flag((alu_out >> 31) & 1 != 0);
+                let alu_out = rn & shifter_operand;
+                registers_lock.set_n_flag(util::test_bit(alu_out, 31));
                 registers_lock.set_z_flag(alu_out == 0);
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             },
             DataOpcode::TEQ => {
-                alu_out = rn ^ shifter_operand;
-                registers_lock.set_n_flag((alu_out >> 31) & 1 != 0);
+                let alu_out = rn ^ shifter_operand;
+                registers_lock.set_n_flag(util::test_bit(alu_out, 31));
                 registers_lock.set_z_flag(alu_out == 0);
-                registers_lock.set_c_flag(shifter_carry_out & 1 != 0);
+                registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             },
             DataOpcode::CMP => {
                 let (alu_out, overflow) = rn.overflowing_sub(shifter_operand);
-                registers_lock.set_n_flag((alu_out >> 31) & 1 != 0);
+                registers_lock.set_n_flag(util::test_bit(alu_out, 31));
                 registers_lock.set_z_flag(alu_out == 0);
                 registers_lock.set_c_flag(!(shifter_operand > rn)); // borrows if shifter_operand > rn
                 registers_lock.set_z_flag(overflow);
             },
             DataOpcode::CMN => {
                 let (alu_out, overflow) = rn.overflowing_add(shifter_operand);
-                registers_lock.set_n_flag((alu_out >> 31) & 1 != 0);
+                registers_lock.set_n_flag(util::test_bit(alu_out, 31));
                 registers_lock.set_z_flag(alu_out == 0);
                 registers_lock.set_c_flag(shifter_operand > rn); // TODO: carries if shifter_operand > rn?
                 registers_lock.set_z_flag(overflow);
@@ -467,7 +471,8 @@ pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
         registers_lock.set_reg_register(Register::r14, address_after_branch);
     }
 
-    let target_address: Word = (registers_lock.get_pc() as i32 + instr.get_offset().unwrap() + 8) as Word;
+    // TODO: subtract 4?
+    let target_address: Word = (registers_lock.get_pc() as i32 + instr.get_offset().unwrap() - 4) as Word;
     registers_lock.set_pc(target_address);
 
     registers_lock.get_pc()
@@ -545,5 +550,63 @@ pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
     registers_lock.set_cpsr_flag(7, true);  // disable interrupts
     registers_lock.set_pc(0x8);
 
+    0
+}
+
+pub fn instr_mrs(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+    if instr.get_gpregister().unwrap() {
+        let spsr = registers_lock.get_spsr();
+        registers_lock.set_reg_register(instr.get_rd().unwrap(), spsr);
+    } else {
+        let cpsr = registers_lock.get_cpsr();
+        registers_lock.set_reg_register(instr.get_rd().unwrap(), cpsr);
+    }
+
+    0
+}
+
+fn instr_msr(registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, operand: Word) {
+    // TODO: verify mask constants (these are according to v6)
+    // const UNALLOC_MASK: Word = 0x06F0FC00;
+    const USER_MASK: Word    = 0xF80F0200;
+    const PRIV_MASK: Word    = 0x000001DF;
+    const STATE_MASK: Word   = 0x01000020;
+
+    let cpsr = registers_lock.get_cpsr();
+    let spsr = registers_lock.get_spsr();
+    let mask ;
+
+    let field_mask = instr.get_field_mask().unwrap() as Word;
+    let byte_mask: Word = (if util::test_bit(field_mask, 0) { 0x000000FF } else { 0x0 }) |
+                          (if util::test_bit(field_mask, 1) { 0x0000FF00 } else { 0x0 }) |
+                          (if util::test_bit(field_mask, 2) { 0x00FF0000 } else { 0x0 }) |
+                          (if util::test_bit(field_mask, 3) { 0xFF000000 } else { 0x0 });
+    if !instr.get_gpregister().unwrap() {
+        // if registers_lock.current_mode_has_spsr() {
+            // if (operand & STATE_MASK) == 0 {
+                // assumed privaleged mode since working with SYS rather than USER mode
+                mask = byte_mask & (USER_MASK | PRIV_MASK);
+            // }
+        // } else {
+        //     mask = byte_mask & USER_MASK
+        // }
+        registers_lock.set_cpsr((cpsr & !mask) | (operand & mask));
+    } else {
+        if registers_lock.current_mode_has_spsr() {
+            mask = byte_mask & (USER_MASK | PRIV_MASK | STATE_MASK);
+            registers_lock.set_spsr((spsr & !mask) | (operand & mask));
+        }
+    }
+}
+
+pub fn instr_msr_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+    let operand = instr.get_imm().unwrap().rotate_right((instr.get_rotate().unwrap() * 2) as Word) as Word;
+    instr_msr(registers_lock, instr, operand);
+    0
+}
+
+pub fn instr_msr_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+    let operand = registers_lock.get_reg_register(instr.get_rm().unwrap());
+    instr_msr(registers_lock, instr, operand);
     0
 }
