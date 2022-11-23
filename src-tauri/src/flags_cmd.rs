@@ -13,5 +13,6 @@ pub async fn cmd_get_flags(registers_state: RegistersState<'_>) -> Result<FlagsP
         z: registers_lock.get_z_flag(),
         c: registers_lock.get_c_flag(),
         v: registers_lock.get_v_flag(),
+        i: registers_lock.get_i_flag(),
     })
 }

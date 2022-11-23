@@ -6,11 +6,9 @@ import * as log from 'tauri-plugin-log-api'
 const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
     const [registers, setRegisters] = createSignal(Array<number>())
 
-    createEffect(() => {
-        listen('registers_update', ({ payload }: { payload: IRegistersPayload }) => {
-            log.trace("SolidJS[RegisterPanel.listen]: updating registers...")
-            setRegisters(payload.register_array)
-        })
+    listen('registers_update', ({ payload }: { payload: IRegistersPayload }) => {
+        log.trace("SolidJS[RegisterPanel.listen]: updating registers...")
+        setRegisters(payload.register_array)
     })
 
     onMount(async () => {

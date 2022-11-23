@@ -20,10 +20,17 @@ interface IFlagsPayload {
     z: boolean
     c: boolean
     v: boolean
+    i: boolean
 }
 
 interface ICPUPayload {
 	trace: boolean
+	mode: string
+}
+
+interface ITerminalPayload {
+	char: string
+	prompt_bytes: number
 }
 
 // array containing tuple, each with

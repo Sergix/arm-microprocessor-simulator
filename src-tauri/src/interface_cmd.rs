@@ -1,11 +1,12 @@
-use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState, TraceFileState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload }};
+use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState, TraceFileState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload }, cpu::CPUPayload};
 use log::{trace};
 use tauri::{AppHandle, Manager};
 use crate::{memory_cmd::chunk_memory, disassembly_cmd::build_disassembly_payload};
 
 pub async fn emit_payloads (app_handle: AppHandle) {
 
-    app_handle.emit_all("disassembly_update", build_disassembly_payload(app_handle.clone()).await).unwrap();
+    let disassembly_payload = build_disassembly_payload(app_handle.clone()).await;
+    app_handle.emit_all("disassembly_update", disassembly_payload).unwrap();
 
     // scoped block to ensure locks are dropped
     {
@@ -13,10 +14,17 @@ pub async fn emit_payloads (app_handle: AppHandle) {
 
         let registers_state: RegistersState = app_handle.state();
         let registers_lock = &mut registers_state.lock().await;
+        let cpu_state: CPUState = app_handle.state();
+        let cpu_lock = &mut cpu_state.lock().await;
         let ram_state: RAMState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
 
         trace!("emit_payloads: obtained state locks");
+
+        app_handle.emit_all("cpu_update", CPUPayload {
+            trace: cpu_lock.get_trace(),
+            mode: registers_lock.get_cpsr_mode()
+        }).unwrap();
 
         app_handle.emit_all("registers_update", RegistersPayload {
             register_array: registers_lock.get_all()
@@ -26,7 +34,8 @@ pub async fn emit_payloads (app_handle: AppHandle) {
             n: registers_lock.get_n_flag(),
             z: registers_lock.get_z_flag(),
             c: registers_lock.get_c_flag(),
-            v: registers_lock.get_v_flag()
+            v: registers_lock.get_v_flag(),
+            i: registers_lock.get_v_flag()
         }).unwrap();
 
         // notify ahead of time that the backend will be chunking memory

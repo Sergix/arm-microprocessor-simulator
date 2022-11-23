@@ -1,5 +1,6 @@
 import { Component, createSignal, onMount, Show } from "solid-js"
 import { invoke } from "@tauri-apps/api"
+import { listen } from '@tauri-apps/api/event'
 import { filename } from "./state"
 import hotkeys from "hotkeys-js"
 import * as log from 'tauri-plugin-log-api'
@@ -11,6 +12,7 @@ const Toolbar: Component = () => {
     const [resetting, setResetting] = createSignal(false);
     const [trace, setTrace] = createSignal(false);
     const [hotkey, setHotkey] = createSignal("");
+    const [mode, setMode] = createSignal("");
 
     hotkeys('f5,f10,ctrl+q,ctrl+r', (e, handler) => {
 		e.preventDefault();
@@ -36,8 +38,10 @@ const Toolbar: Component = () => {
         setRunning(false)
     }
 
-    const step = () => {
-        invoke('cmd_step')
+    const step = async () => {
+        setRunning(true)
+        await invoke('cmd_step')
+        setRunning(false)
     }
 
     const stop = () => {
@@ -70,15 +74,22 @@ const Toolbar: Component = () => {
     onMount(async () => {
         log.trace("SolidJS[Toolbar.onMount]: getting cpu state...")
 
-        const payload: ICPUPayload = await invoke('cmd_get_trace')
+        const payload: ICPUPayload = await invoke('cmd_get_cpu')
         
         setTrace(payload.trace)
+        setMode(payload.mode)
+    })
+
+    listen('cpu_update', ({ payload }: { payload: ICPUPayload }) => {
+        log.trace("SolidJS[FlagsPanel.listen]: updating flags...")
+        setTrace(payload.trace)
+        setMode(payload.mode)
     })
 
     return (
         <header class={styles.toolbar}>
             <button onClick={run} disabled={running() || resetting()}>Run</button>
-            <button onClick={step} disabled={resetting()}>Step</button>
+            <button onClick={step} disabled={running() || resetting()}>Step</button>
             <button onClick={stop} disabled={!running() || resetting()}>Stop</button>
             <button onClick={addBreakpoint}>Add Breakpoint</button>
             <button onClick={reset} disabled={resetting()}>Reset</button>
@@ -86,6 +97,7 @@ const Toolbar: Component = () => {
             <Show when={resetting()}>
                 <p class="ml-4 font-sans text-white italic text-md my-auto">Resetting...</p>
             </Show>
+            <p class="ml-auto mr-4 bg-slate-800 px-4 py-2 rounded-sm font-mono italic shadow-md text-violet-400 border-slate-600 border">{ mode() }</p>
             <aside class="absolute top-0 right-0 m-6 px-6 py-3 bg-slate-900 text-white border-2 border-double border-b-4 border-spacing-2 border-violet-900 font-mono italic rounded-lg shadow-md transition-opacity ease-in duration-150" classList={ {['opacity-90']: hotkey() !== "", ['opacity-0']: hotkey() === ""} }>{hotkey()}</aside>
         </header>
     )

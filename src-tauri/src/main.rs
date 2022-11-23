@@ -15,6 +15,7 @@ mod interface_cmd;
 mod memory_cmd;
 mod disassembly_cmd;
 mod cpu_cmd;
+mod terminal_cmd;
 
 use lib::memory;
 use lib::memory::Byte;
@@ -101,7 +102,8 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            cpu_cmd::cmd_get_trace,
+            terminal_cmd::cmd_terminal_input,
+            cpu_cmd::cmd_get_cpu,
             loader_cmd::cmd_get_elf,
             loader_cmd::cmd_load_elf,
             registers_cmd::cmd_get_registers,

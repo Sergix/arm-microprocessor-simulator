@@ -18,6 +18,10 @@ pub const NUM_REGISTERS: usize = 17; // r0...r15, 16 is CPSR
 pub const REGISTER_BYTES: usize = 4; // 4byte = 32bit
 pub const CPSR_ADDR: AddressSize = ((NUM_REGISTERS - 1) * REGISTER_BYTES) as AddressSize;
 
+pub const DISPLAY_ADDR: AddressSize  = 0x100000;
+pub const KEYBOARD_ADDR: AddressSize = 0x100001;
+
+
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
 pub enum Register {
@@ -63,7 +67,8 @@ pub struct FlagsPayload {
     pub n: bool,
     pub c: bool,
     pub z: bool,
-    pub v: bool
+    pub v: bool,
+    pub i: bool
 }
 
 impl Default for FlagsPayload {
@@ -73,6 +78,7 @@ impl Default for FlagsPayload {
             c: false,
             z: false,
             v: false,
+            i: false,
         }
     }
 }
@@ -421,6 +427,22 @@ impl Registers {
         self.set_flag(CPSR_ADDR, 28, flag);
     }
 
+    pub fn get_i_flag(&mut self) -> bool {
+        self.test_flag(CPSR_ADDR, 7)
+    }
+
+    pub fn set_i_flag(&mut self, flag: bool) {
+        self.set_flag(CPSR_ADDR, 7, flag);
+    }
+
+    pub fn get_t_flag(&mut self) -> bool {
+        self.test_flag(CPSR_ADDR, 5)
+    }
+
+    pub fn set_t_flag(&mut self, flag: bool) {
+        self.set_flag(CPSR_ADDR, 5, flag);
+    }
+
     pub fn get_cpsr_control_byte(&mut self) -> Byte {
         self.read_byte(CPSR_ADDR + 3)
     }
@@ -432,6 +454,10 @@ impl Registers {
         let v = if self.get_v_flag() { 1 } else { 0 };
 
         n << 3 | z << 2 | c << 1 | v
+    }
+
+    pub fn get_nzcv_tuple(&mut self) -> (bool, bool, bool, bool) {
+        (self.get_n_flag(), self.get_z_flag(), self.get_c_flag(), self.get_v_flag())
     }
 }
 

@@ -1,4 +1,4 @@
-import { Component, createEffect, createMemo, createSignal, mergeProps, onMount, Show } from "solid-js"
+import { Component, createSignal, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
 import styles from './css/MemoryPanel.module.css'

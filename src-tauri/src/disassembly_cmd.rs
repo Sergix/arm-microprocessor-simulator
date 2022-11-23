@@ -39,6 +39,8 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
         if address > pc + 12 { break }
     }
 
+    trace!("emit_dissassembly_payload: finished");
+
     DisassemblyPayload {
         pc,
         instructions: disassembly_instructions.clone()
