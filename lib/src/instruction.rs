@@ -1,7 +1,7 @@
 use tokio::sync::MutexGuard;
 
 use crate::execute;
-use crate::memory::{Byte, Word, Register, RAM, Registers};
+use crate::memory::{Byte, Word, Register, RAM, Registers, Memory};
 use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType, LSH, LDMCode};
 
 // This is the parent trait that contains all the default implementations
@@ -73,23 +73,116 @@ pub trait TInstruction {
     fn get_reg_list(&self) -> Option<Word>;
     fn set_reg_list(&mut self, reg_list: Word);
 
-    // - store constant
+    fn get_last_char(&self) -> Option<char>;
+    fn set_last_char(&mut self, last_char: char);
 
     // shift value in immediate_shift field by shift amount
     // https://developer.arm.com/documentation/dui0489/i/arm-and-thumb-instructions/operand2-as-a-register-with-optional-shift?lang=en
-    fn shift_value(value: Word, shift_amount: Word, shift_type: ShiftType) -> Word {
+    // ARM Manual A5.1
+    fn shift_value_by_imm(rm: Word, shift_imm: Word, shift_type: ShiftType, c_flag: Byte) -> (Word, Word) {
+        let rm_msb = (rm >> 31) & 1;
         match shift_type {
-            ShiftType::LSL => value << shift_amount,
-            ShiftType::LSR => value >> shift_amount,
-            ShiftType::ASR => ((value as i32) >> shift_amount) as Word, // force ASR in Rust
-            ShiftType::ROR => value.rotate_right(shift_amount),
+            ShiftType::LSL => {
+                if shift_imm == 0 {
+                    (rm, c_flag as Word)
+                } else {
+                    (rm << shift_imm, (rm >> (32 - shift_imm)) & 1)
+                }
+            },
+            ShiftType::LSR => {
+                if shift_imm == 0 {
+                    (0, rm_msb)
+                } else {
+                    (rm >> shift_imm, (rm >> (shift_imm - 1)) & 1)
+                }
+            },
+            ShiftType::ASR => {
+                if shift_imm == 0 {
+                    if (rm >> 31) & 1 == 0 {
+                        (0, rm_msb)
+                    } else {
+                        (0xffffffff, rm_msb)
+                    }
+                } else {
+                    // cast to i32 to force ASR in Rust
+                    (((rm as i32) >> shift_imm) as Word, (rm >> (shift_imm - 1)) & 1)
+                }
+            },
+            ShiftType::ROR => {
+                if shift_imm == 0 {
+                    ((c_flag << 31) as Word | (rm >> 1), rm & 1)
+                } else {
+                    (rm.rotate_right(shift_imm), (rm >> (shift_imm - 1)) & 1)
+                }
+            }
         }
     }
 
-    fn rotate_value(rotate: Byte, imm: Byte) -> Word {
-        let immediate_to_rotate: Word = (imm & 0xff) as Word;
-        let rotate_amount: Word = ((rotate as Byte) * 2) as Word;
-        immediate_to_rotate.rotate_right(rotate_amount)
+    fn shift_value_by_reg(rm: Word, rs: Word, shift_type: ShiftType, c_flag: Byte) -> (Word, Word) {
+        let rs_lsb = rs & 0xff;
+        let rs_lsn = rs & 0xf;
+        let rm_msb = (rm >> 31) & 1;
+
+        match shift_type {
+            ShiftType::LSL => {
+                if rs_lsb == 0 {
+                    (rm, c_flag as Word)
+                } else if rs_lsb < 32 {
+                    (rm << rs_lsb, (rm >> (32 - rs_lsb)) & 1)
+                } else if rs_lsb == 32 {
+                    (0, rm & 1)
+                } else {
+                    (0, 0)
+                }
+            },
+            ShiftType::LSR => {
+                if rs_lsb == 0 {
+                    (rm, c_flag as Word)
+                } else if rs_lsb < 32 {
+                    (rm >> rs_lsb, (rm >> (rs_lsb - 1)) & 1)
+                } else if rs_lsb == 32 {
+                    (0, rm_msb)
+                } else {
+                    (0, 0)
+                }
+            },
+            ShiftType::ASR => {
+                if rs_lsb == 0 {
+                    (rm, c_flag as Word)
+                } else if rs_lsb < 32 {
+                    // cast to i32 to force ASR in Rust
+                    (((rm as i32) >> rs_lsb) as Word, (rm >> (rs_lsb - 1)) & 1)
+                } else {
+                    if rm_msb == 0 {
+                        (0, rm_msb)
+                    } else {
+                        (0xffffffff, rm_msb)
+                    }
+                }
+            },
+            ShiftType::ROR => {
+                if rs_lsb == 0 {
+                    (rm, c_flag as Word)
+                } else if rs_lsn == 0 {
+                    (rm, rm_msb)
+                } else {
+                    (rm.rotate_right(rs), (rm >> (rs_lsn - 1)) & 1)
+                }
+            }
+        }
+    }
+
+    // tuple: (shifter_operand, shifter_carry_out)
+    // A5.1.3
+    fn rotate_value(rotate_imm: Byte, immed_8: Byte, c_flag: Byte) -> (Word, Word) {
+        let immediate_to_rotate: Word = (immed_8 & 0xff) as Word;
+        let rotate_amount: Word = ((rotate_imm as Byte) * 2) as Word;
+        let shifter_operand = immediate_to_rotate.rotate_right(rotate_amount);
+        if rotate_imm == 0 {
+            (shifter_operand, c_flag as Word)
+        } else {
+            (shifter_operand, (shifter_operand >> 31) & 1)
+        }
     }
 
     fn get_rd(&self) -> Option<Register>;
@@ -136,7 +229,8 @@ pub struct Instruction {
     offset: Option<i32>,
     lsh: Option<LSH>,
     ldm: Option<LDMCode>,
-    reg_list: Option<Word>
+    reg_list: Option<Word>,
+    last_char: Option<char>
 }
 
 impl TInstruction for Instruction {
@@ -165,7 +259,8 @@ impl TInstruction for Instruction {
             offset: None,
             lsh: None,
             ldm: None,
-            reg_list: None
+            reg_list: None,
+            last_char: None
         }
     }
 
@@ -388,6 +483,14 @@ impl TInstruction for Instruction {
 
     fn set_reg_list(&mut self, reg_list: Word) {
         self.reg_list = Some(reg_list);
+    }
+
+    fn get_last_char(&self) -> Option<char> {
+        self.last_char
+    }
+
+    fn set_last_char(&mut self, last_char: char) {
+        self.last_char = Some(last_char);
     }
 }
 
@@ -620,12 +723,21 @@ pub fn instr_ldrhstrh_reg_post(condition: Word, add_sub: Word, writeback: Word, 
     instr
 }
 
-pub fn instr_branch(condition: Word, l_bit: Word, offset: Word) -> Instruction {
+pub fn instr_b(condition: Word, l_bit: Word, offset: Word) -> Instruction {
     let mut instr = Instruction::new(InstrType::B);
     instr.set_condition(condition); 
     instr.set_l_bit(l_bit);
     instr.set_offset(((offset as i32) << 2) + 8);
-    instr.set_execute(execute::instr_branch);
+    instr.set_execute(execute::instr_b);
+
+    instr
+}
+
+pub fn instr_bx(condition: Word, rm: Word) -> Instruction {
+    let mut instr = Instruction::new(InstrType::BX);
+    instr.set_condition(condition); 
+    instr.set_rm(rm);
+    instr.set_execute(execute::instr_bx);
 
     instr
 }

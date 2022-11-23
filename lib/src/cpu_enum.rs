@@ -19,6 +19,7 @@ pub enum InstrType {
     LDRHSTRHRegPost,
     LDMSTM,
     B,
+    BX,
     SWI,
     MUL,
     NOP,
@@ -115,7 +116,7 @@ impl fmt::Display for Condition {
     }
 }
 
-#[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
+#[derive(Copy, Clone, FromPrimitive, PartialEq, Debug, serde::Serialize)]
 pub enum Mode {
     User       = 0b10000,
     FIQ        = 0b10001,

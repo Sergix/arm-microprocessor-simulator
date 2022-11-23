@@ -49,14 +49,20 @@ pub async fn read_elf_file(path: BasePathBuf, app_handle: AppHandle) -> Result<(
                 let offset = segment.p_offset(endianness);
                 let memsz = segment.p_memsz(endianness);
                 let paddr = segment.p_paddr(endianness);
-
-                trace!("read_elf_file: segment {}memsz {}offset {}paddr", memsz, offset, paddr);
-
+                
                 // write segment data to RAM starting at paddr
                 let ram_lock = &mut ram_state.lock().await;
                 let segment_data = segment.data(endianness, &*bin_data).unwrap();
+
+                trace!("read_elf_file: segment {}memsz {}offset {}paddr {}segsz", memsz, offset, paddr, segment.file_range(endianness).1);
+
                 for i in 0..memsz {
-                    ram_lock.write_byte(paddr + i, segment_data[i as usize] as u8);
+                    // segment data read from elf library may not be the actual size indicated by p_memsz, so fill the rest with 0's if needed
+                    if i as usize >= segment_data.len() {
+                        ram_lock.write_byte(paddr + i, 0)
+                    } else {
+                        ram_lock.write_byte(paddr + i, segment_data[i as usize] as u8);
+                    }
                 }
             }
 

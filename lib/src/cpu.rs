@@ -3,7 +3,7 @@ use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{InstrType, Mode}};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{InstrType, Mode, Condition}};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -29,13 +29,21 @@ impl Default for CPUThreadWatcher {
 
 #[derive(Clone, serde::Serialize)]
 pub struct CPUPayload {
-    pub trace: bool
+    pub trace: bool,
+    pub mode: Mode,
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct TerminalPayload {
+    pub char: char
 }
 
 pub struct CPU {
     breakpoints: Vec<AddressSize>,
     trace: bool,
-    trace_step: Word
+    trace_step: Word,
+    irq: bool,
+    last_char: char
 }
 
 impl CPU {
@@ -43,7 +51,9 @@ impl CPU {
         Self {
             breakpoints: vec![0; 0],
             trace: false,
-            trace_step: 1
+            trace_step: 1,
+            irq: false,
+            last_char: '\0'
         }
     }
 
@@ -59,6 +69,22 @@ impl CPU {
 
     pub fn reset_trace_step(&mut self) {
         self.trace_step = 1
+    }
+
+    pub fn get_irq(&self) -> bool {
+        self.irq
+    }
+
+    pub fn set_irq(&mut self) {
+        self.irq = true
+    }
+
+    pub fn clear_irq(&mut self) {
+        self.irq = false
+    }
+
+    pub fn set_last_char(&mut self, last_char: char) {
+        self.last_char = last_char
     }
 
     pub async fn stop(&self, app_handle: AppHandle) {
@@ -91,7 +117,8 @@ impl CPU {
             "cccc_000_0_u1wl_nnnn_dddd_hhhh_1_ss_1_iiii"    => instr_ldrhstrh_imm_post(c, u, w, l, n, d, h, s, i),
             "cccc_000_1_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_pre(c, u, w, l, n, d, s, m),
             "cccc_000_0_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_post(c, u, w, l, n, d, s, m),
-            "cccc_101_l_oooooooooooooooooooooooo"           => instr_branch(c, l, o),
+            "cccc_101_l_oooooooooooooooooooooooo"           => instr_b(c, l, o),
+            "cccc_00010010_????_????_????_0001_mmmm"        => instr_bx(c, m),
             "cccc_100_uuswl_nnnn_rrrrrrrrrrrrrrrr"          => instr_ldmstm(c, u, s, w, l, n, r),
             "cccc_000_0000_s_dddd_0000_ssss_1001_mmmm"      => instr_mul(c, s, d, s, m),
             "cccc_1111_ssssssssssssssssssssssss"            => instr_swi(c, s),
@@ -99,11 +126,34 @@ impl CPU {
         }
     }
 
-    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
-        // TODO: check if condition passed and that the next instructions conditions allow if it did not pass
+    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: &mut Instruction) -> Word {
+        let (n, z, c, v) = registers_lock.get_nzcv_tuple();
 
-        // grab the execute method for the specific instruction and pass the state objects
-        instr.get_execute()(ram_lock, registers_lock, instr)
+        // check if condition passed and that the next instructions conditions allow if it did not pass
+        let exec = match instr.get_condition() {
+            Condition::EQ =>     z,
+            Condition::NE =>    !z,
+            Condition::CSHS =>   c,
+            Condition::CCLO =>  !c,
+            Condition::MI =>     n,
+            Condition::PL =>    !n,
+            Condition::VS =>     v,
+            Condition::VC =>    !v,
+            Condition::HI =>     c && !z,
+            Condition::LS =>    !c || z,
+            Condition::GE =>    (n && v) || (!n && !v),
+            Condition::LT =>    (n && !v) || (!n && v),
+            Condition::GT =>    (!z && (n || v)) || (!n && !v),
+            Condition::LE =>     z || (n && !v) || (!n && v),
+            Condition::AL =>    true,
+        };
+
+        if exec {
+            // grab the execute method for the specific instruction and pass the state objects
+            instr.get_execute()(ram_lock, registers_lock, *instr)
+        } else {
+            0
+        }
     }
 
     // will be called by SWI instruction
@@ -128,8 +178,6 @@ impl CPU {
     }
     
     pub async fn run(&mut self, app_handle: AppHandle) {
-        
-
         // update thread state and drop immediately
         let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
         cpu_thread_state.lock().await.set_running(true);
@@ -138,8 +186,10 @@ impl CPU {
         // fetch-decode-execute
         loop {
             // stop when thread flag is updated
-            let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
-            if !cpu_thread_state.lock().await.is_running() { break }
+            {
+                let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
+                if !cpu_thread_state.lock().await.is_running() { break }
+            }
 
             // stop when HLT instruction or breakpoint is reached
             if self.step(app_handle.clone()).await { break }
@@ -180,14 +230,27 @@ impl CPU {
         if instr_raw == 0 { self.stop(app_handle.clone()).await; return true }
 
         // get the instruction struct from the raw Word
-        let instr: Instruction = self.decode(instr_raw);
+        let mut instr: Instruction = self.decode(instr_raw);
 
         trace!("step: instr = {}", instr.to_string());
+
+        // map display hardware event manually before delegating
+        // rn = DISPLAY_ADDR
+        // rd = value to write
+        if instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
+            trace!("step: mapping hardware display event, char = ");
+            app_handle.emit_all("cmd_terminal_append", TerminalPayload {
+                char: char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0')
+            }).unwrap();
+        }
+
+        // inject last character from keyboard event if needed
+        instr.set_last_char(self.last_char);
 
         // pass the necessary state objects and instruction struct
         // state guards need to be passed so that the execute method can properly access/modify
         // the application state
-        self.execute(ram_lock, registers_lock, instr);
+        self.execute(ram_lock, registers_lock, &mut instr);
 
         // increment program counter
         registers_lock.inc_pc();
@@ -217,6 +280,13 @@ impl CPU {
             return true;
         }
 
+        // proccess IRQ interrupt from IRQ input line
+        // only when IRQ interrupts are not disabled
+        if self.irq && !registers_lock.get_i_flag() {
+            self.irq = false;
+            registers_lock.set_i_flag(false);
+        }
+
         return false;
     }
 }
@@ -226,7 +296,9 @@ impl Default for CPU {
         Self {
             breakpoints: vec![0; 0],
             trace: false,
-            trace_step: 1
+            trace_step: 1,
+            irq: false,
+            last_char: '\0'
         }
     }
 }
