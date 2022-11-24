@@ -109,11 +109,14 @@ fn get_fields_str(field_mask: Word) -> String {
     let mut str = "".to_string();
     if util::test_bit(field_mask, 3) {
         str.push('f');
-    } else if util::test_bit(field_mask, 2) {
+    }
+    if util::test_bit(field_mask, 2) {
         str.push('s');
-    } else if util::test_bit(field_mask, 1) {
+    }
+    if util::test_bit(field_mask, 1) {
         str.push('x');
-    } else if util::test_bit(field_mask, 0) {
+    }
+    if util::test_bit(field_mask, 0) {
         str.push('c');
     }
     str
@@ -138,6 +141,11 @@ impl fmt::Display for Instruction {
                     },
                 };
 
+                let (shifter_operand, _shifter_carry_out) = Instruction::rotate_value(
+                    self.get_rotate().unwrap(),
+                    self.get_imm().unwrap_or(0),
+                    0);
+
                 // for each instruction, produce the opcode
                 // and all information associated with it
                 fmt.write_str(
@@ -148,7 +156,7 @@ impl fmt::Display for Instruction {
                         get_s_bit_str(self.get_s_bit().unwrap()),
                         self.get_rd().unwrap().to_string(),
                         rn,
-                        self.get_imm().unwrap_or(0).to_string()
+                        shifter_operand
                     ).as_str()
                 )?;
             },
@@ -408,19 +416,43 @@ impl fmt::Display for Instruction {
             },
             InstrType::LDMSTM => {
                 // ex: ldmalda rn! , {r1, r2, r5}
-                //     {} {}{} {}{}, {}
+                //     {} {}{} {}{},      {}
 
-                fmt.write_str(
-                    format!(
-                        "{}{}{} {}{}, {{{}}}",
-                        get_ldm_stm_str(self.get_ldr_str().unwrap()),
-                        get_condition_str(self.get_condition()),
-                        get_ldm_code_str(self.get_ldm().unwrap()),
-                        self.get_rn().unwrap().to_string(),
-                        get_writeback_str(self.get_writeback().unwrap()),
-                        get_reg_list_str(self.get_reg_list().unwrap()),
-                    ).as_str()
-                )?;
+                if self.get_ldr_str().unwrap()
+                    && self.get_ldm().unwrap() == LDMCode::IncAfter
+                    && self.get_rn().unwrap() == Register::r13
+                    && self.get_writeback().unwrap() { // pop
+                    fmt.write_str(
+                        format!(
+                            "pop{} {{{}}}",
+                            get_condition_str(self.get_condition()),
+                            get_reg_list_str(self.get_reg_list().unwrap()),
+                        ).as_str()
+                    )?;
+                } else if !self.get_ldr_str().unwrap()
+                       && self.get_ldm().unwrap() == LDMCode::DecBefore
+                       && self.get_rn().unwrap() == Register::r13
+                       && self.get_writeback().unwrap() { // push
+                    fmt.write_str(
+                        format!(
+                            "push{} {{{}}}",
+                            get_condition_str(self.get_condition()),
+                            get_reg_list_str(self.get_reg_list().unwrap()),
+                        ).as_str()
+                    )?;
+                } else {
+                    fmt.write_str(
+                        format!(
+                            "{}{}{} {}{}, {{{}}}",
+                            get_ldm_stm_str(self.get_ldr_str().unwrap()),
+                            get_condition_str(self.get_condition()),
+                            get_ldm_code_str(self.get_ldm().unwrap()),
+                            self.get_rn().unwrap().to_string(),
+                            get_writeback_str(self.get_writeback().unwrap()),
+                            get_reg_list_str(self.get_reg_list().unwrap()),
+                        ).as_str()
+                    )?;
+                }
             },
             InstrType::MUL => {
                 // ex: mulals  rd, rm, rs
