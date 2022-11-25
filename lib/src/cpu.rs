@@ -3,7 +3,7 @@ use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{Mode, Condition}};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR, Register}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{Mode, Condition, InstrExecuteCondition}};
 
 pub struct CPUThreadWatcher {
     running: bool
@@ -34,8 +34,13 @@ pub struct CPUPayload {
 }
 
 #[derive(Clone, serde::Serialize)]
-pub struct TerminalPayload {
+pub struct TerminalPutcharPayload {
     pub char: char
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct TerminalReadlinePayload {
+    pub max_bytes: Word
 }
 
 pub struct CPU {
@@ -105,6 +110,10 @@ impl CPU {
         #[bitmatch]
         match instr {
             "11100001101000000000000000000000"              => instr_nop(),
+            "cccc_00010_r_00_1111_dddd_000000000000"        => instr_mrs(c, r, d),
+            "cccc_00110_r_10_ffff_1111_rrrr_iiiiiiii"       => instr_msr_imm(c, r, f, r, i),
+            "cccc_00010_r_10_ffff_1111_00000000_mmmm"       => instr_msr_reg(c, r, f, m),
+            "cccc_00010010_111111111111_0001_mmmm"          => instr_bx(c, m),
             "cccc_000_oooo_s_nnnn_dddd_iiiii_tt_0_mmmm"     => instr_data_reg_imm(c, o, s, n, d, i, t, m),
             "cccc_000_oooo_s_nnnn_dddd_ssss_0_tt_1_mmmm"    => instr_data_reg_reg(c, o, s, n, d, s, t, m),
             "cccc_001_oooo_s_nnnn_dddd_rrrr_iiiiiiii"       => instr_data_imm(c, o, s, n, d, r, i),
@@ -119,18 +128,14 @@ impl CPU {
             "cccc_000_1_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_pre(c, u, w, l, n, d, s, m),
             "cccc_000_0_u0wl_nnnn_dddd_0000_1_ss_1_mmmm"    => instr_ldrhstrh_reg_post(c, u, w, l, n, d, s, m),
             "cccc_101_l_oooooooooooooooooooooooo"           => instr_b(c, l, o),
-            "cccc_00010010_111111111111_0001_mmmm"          => instr_bx(c, m),
             "cccc_100_uuswl_nnnn_rrrrrrrrrrrrrrrr"          => instr_ldmstm(c, u, s, w, l, n, r),
             "cccc_000_0000_s_dddd_0000_ssss_1001_mmmm"      => instr_mul(c, s, d, s, m),
             "cccc_1111_ssssssssssssssssssssssss"            => instr_swi(c, s),
-            "cccc_00010_r_00_1111_dddd_000000000000"        => instr_mrs(c, r, d),
-            "cccc_00110_r_10_ffff_1111_rrrr_iiiiiiii"       => instr_msr_imm(c, r, f, r, i),
-            "cccc_00010_r_10_ffff_1111_00000000_mmmm"       => instr_msr_reg(c, r, f, m),
             "????????????????????????????????"              => instr_nop(),
         }
     }
 
-    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: &mut Instruction) -> Word {
+    pub fn execute(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: &mut Instruction) -> InstrExecuteCondition {
         let (n, z, c, v) = registers_lock.get_nzcv_tuple();
 
         // check if condition passed and that the next instructions conditions allow if it did not pass
@@ -147,7 +152,7 @@ impl CPU {
             Condition::LS =>    !c || z,
             Condition::GE =>    (n && v) || (!n && !v),
             Condition::LT =>    (n && !v) || (!n && v),
-            Condition::GT =>    (!z && (n || v)) || (!n && !v),
+            Condition::GT =>    !z && n == v,
             Condition::LE =>     z || (n && !v) || (!n && v),
             Condition::AL =>    true,
         };
@@ -156,7 +161,7 @@ impl CPU {
             // grab the execute method for the specific instruction and pass the state objects
             instr.get_execute()(ram_lock, registers_lock, *instr)
         } else {
-            0
+            InstrExecuteCondition::NOP
         }
     }
 
@@ -195,8 +200,22 @@ impl CPU {
                 if !cpu_thread_state.lock().await.is_running() { break }
             }
 
-            // stop when HLT instruction or breakpoint is reached
-            if self.step(app_handle.clone()).await { break }
+            if self.step(app_handle.clone()).await {
+                // stop when HLT instruction or other exception
+                trace!("run: hit HLT or exception");
+                self.stop(app_handle.clone()).await;
+                break
+            }
+
+            // stop when pc hits breakpoint address
+            {
+                let registers_state: RegistersState = app_handle.state();
+                if self.is_breakpoint(&(registers_state.lock().await).get_pc_current_address()) { 
+                    trace!("run: hit breakpoint");
+                    self.stop(app_handle.clone()).await;
+                    break
+                }
+            }
         }
 
         trace!("run: cpu stopped");
@@ -214,54 +233,47 @@ impl CPU {
         trace!("step: trace_step: {}", self.trace_step);
         trace!("step: cpsr: {}", registers_lock.get_cpsr());
 
-        // save PC for trace log
+        // save PC before fetch begins
         let saved_pc = registers_lock.get_pc_current_address();
-
-        // stop when pc hits breakpoint address
-        if self.is_breakpoint(&registers_lock.get_pc_current_address()) { 
-            trace!("step: hit breakpoint");
-            self.stop(app_handle.clone()).await;
-            return true
-        }
 
         let instr_raw = self.fetch(ram_lock, registers_lock);
         trace!("step: {}pc = {:x}", registers_lock.get_pc_current_address(), instr_raw);
 
         // halt when instruction is HLT
-        if instr_raw == 0 { self.stop(app_handle.clone()).await; return true }
+        if instr_raw == 0 { registers_lock.inc_pc(); return true }
 
         // get the instruction struct from the raw Word
         let mut instr: Instruction = self.decode(instr_raw);
+        //
+        // inject possibly needed information into instruction before executing
+        //
         instr.set_pc_address(registers_lock.get_pc());
-
-        trace!("step: instr = {}", instr.to_string());
-
         // map display hardware event manually before delegating
         // rn = DISPLAY_ADDR
         // rd = value to write
         if instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
             trace!("step: mapping hardware display event, char = ");
-            app_handle.emit_all("cmd_terminal_append", TerminalPayload {
+            app_handle.emit_all("cmd_terminal_append", TerminalPutcharPayload {
                 char: char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0')
             }).unwrap();
         }
-        // TODO: here?
         // inject last character from keyboard event if needed
         instr.set_last_char(self.last_char);
 
-        // pass the necessary state objects and instruction struct
+
+        // pass the necessary state objects and instruction struct;
         // state guards need to be passed so that the execute method can properly access/modify
         // the application state
-        self.execute(ram_lock, registers_lock, &mut instr);
+        // exit if HLT
+        trace!("step: instr = {}", instr.to_string());
+        let exec_result: InstrExecuteCondition = self.execute(ram_lock, registers_lock, &mut instr);
 
         // increment program counter
         registers_lock.inc_pc();
 
-        // get all registers and remove r15
+        // logging: get all registers and remove r15
         let mut reg_all = registers_lock.get_all();
         reg_all.pop();
-
-        // update trace log and step counter
         trace_lock.append_trace_file_line(
             self.trace_step,
             saved_pc,
@@ -275,12 +287,78 @@ impl CPU {
         );
         self.trace_step += 1;
 
+        match exec_result {
+            InstrExecuteCondition::HLT => {
+                trace!("step: hit SWI HLT");
+                return true
+            },
+            InstrExecuteCondition::SWI => {
+                // processed here so that we can properly access the app thread
+                trace!("step: processing SWI event {:x}swi", instr.get_swi().unwrap());
+
+                // https://protect.bju.edu/cps/courses/cps310/lectures/lecture11/
+                let cpsr = registers_lock.get_cpsr();
+                let pc = registers_lock.get_pc();
+
+                // TODO: mode switching *should* happen after the SPSR is saved, but it needs to switch beforehand because of the implicit mappings below
+                registers_lock.set_cpsr_mode(Mode::SVC);
+                // automatically maps LR (r14) -> LR_svc when in SVC mode
+                // TODO: should it just be Register::r14_svc instead of having an implicit mapping?
+                registers_lock.set_reg_register(Register::r14, pc - 4);
+                // TODO: should it just be set_spsr_svc instead of having an implicit mapping?
+                registers_lock.set_spsr(cpsr);
+                registers_lock.set_cpsr_flag(5, false); // ARM state
+                registers_lock.set_cpsr_flag(7, true);  // disable interrupts
+                registers_lock.set_pc(0xc); // extra 4 bytes since PC is incremented after; TODO: check in CPU::step whether to increment extra on b/bx/swi?
+
+                if instr.get_swi().unwrap() == 0x0 {
+                    // putchar
+                    let arg_char = registers_lock.get_reg_register(Register::r0);
+                    app_handle.emit_all("cmd_terminal_append", TerminalPutcharPayload {
+                        char: char::from_u32(arg_char).unwrap_or('\0')
+                    }).unwrap();
+                } else if instr.get_swi().unwrap() == 0x6a {
+                    // getline
+                    let arg_dest_addr = registers_lock.get_reg_register(Register::r1);
+                    let arg_max_bytes = registers_lock.get_reg_register(Register::r2) - 1; // fit null terminator
+
+                    app_handle.emit_all("cmd_terminal_prompt", TerminalReadlinePayload {
+                        max_bytes: arg_max_bytes
+                    }).unwrap();
+
+                    // TODO: how to wait for frontend to return?
+                    //   - need some sort of promise/await call here
+                    //   - CPUThreadWatcher?
+                    //   - 
+
+                    // TODO: append CR if received bytes < arg_max_bytes
+                    // TODO: append \0
+                }
+            },
+            InstrExecuteCondition::NOP => (),
+        }
+
         // proccess IRQ interrupt from IRQ input line
         // only when IRQ interrupts are not disabled
         if self.irq && !registers_lock.get_i_flag() {
+            // TODO: A2.6.8
+
+            trace!("step: received IRQ event, handling...");
+
             self.irq = false;
             registers_lock.set_i_flag(false);
-            // TODO: process the exception/interrupt
+
+            let pc = registers_lock.get_pc();
+            let cpsr = registers_lock.get_cpsr();
+            // TODO: mode switching *should* happen after the SPSR is saved, but it needs to switch beforehand because of the implicit mappings below
+            registers_lock.set_cpsr_mode(Mode::IRQ);
+            // automatically maps LR (r14) -> LR_irq when in IRQ mode
+            // TODO: should it just be Register::r14_irq instead of having an implicit mapping?
+            registers_lock.set_reg_register(Register::r14, pc - 8);
+            // TODO: should it just be set_spsr_irq instead of having an implicit mapping?
+            registers_lock.set_spsr(cpsr);
+            registers_lock.set_cpsr_flag(7, true);  // disable interrupts
+            registers_lock.set_pc(0x20); // add 8 because of PC increment
         }
 
         return false;

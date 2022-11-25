@@ -1,7 +1,7 @@
 use log::trace;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode}, util};
+use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR, SignedWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode, InstrExecuteCondition::{NOP, HLT, SWI, self}}, util};
 
 // this method matches all the data operations with their appropriate operation
 // the caller is expected to resolve the operand2 ahead of time; this function
@@ -49,7 +49,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
             let (rd, overflow) = rn.overflowing_add(shifter_operand);
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(shifter_operand > rn); // TODO: carry vs overflow flags?
+                registers_lock.set_c_flag(shifter_operand > rn);
                 registers_lock.set_v_flag(overflow);
             }
             Some(rd)
@@ -58,7 +58,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
             let (rd, overflow) = rn.overflowing_add(shifter_operand + if c_flag { 1 } else { 0 });
 
             if instr.get_s_bit().unwrap() {
-                registers_lock.set_c_flag(rn > shifter_operand + if c_flag { 1 } else { 0 }); // TODO: carry vs overflow flags?
+                registers_lock.set_c_flag(rn > shifter_operand + if c_flag { 1 } else { 0 });
                 registers_lock.set_v_flag(overflow);
             }
             Some(rd)
@@ -142,18 +142,19 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
                 registers_lock.set_c_flag(util::word_lsb_to_bool(shifter_carry_out));
             },
             DataOpcode::CMP => {
-                let (alu_out, overflow) = rn.overflowing_sub(shifter_operand);
-                registers_lock.set_n_flag(util::test_bit(alu_out, 31));
+                // needs to be signed so that overflow is properly calculated
+                let (alu_out, overflow) = (rn as SignedWord).overflowing_sub(shifter_operand as SignedWord);
+                registers_lock.set_n_flag(util::test_bit(alu_out as Word, 31));
                 registers_lock.set_z_flag(alu_out == 0);
                 registers_lock.set_c_flag(!(shifter_operand > rn)); // borrows if shifter_operand > rn
-                registers_lock.set_z_flag(overflow);
+                registers_lock.set_v_flag(overflow);
             },
             DataOpcode::CMN => {
-                let (alu_out, overflow) = rn.overflowing_add(shifter_operand);
-                registers_lock.set_n_flag(util::test_bit(alu_out, 31));
+                let (alu_out, overflow) = (rn as SignedWord).overflowing_add(shifter_operand as SignedWord);
+                registers_lock.set_n_flag(util::test_bit(alu_out as Word, 31));
                 registers_lock.set_z_flag(alu_out == 0);
                 registers_lock.set_c_flag(shifter_operand > rn); // TODO: carries if shifter_operand > rn?
-                registers_lock.set_z_flag(overflow);
+                registers_lock.set_v_flag(overflow);
             },
             _ => ()
         }
@@ -338,7 +339,7 @@ fn stm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, R
 // each of these methods are mapped to the Instruction::execute method
 // and called from CPU::execute
 
-pub fn instr_data_reg_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_data_reg_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
     let (shifter_operand, shifter_carry_out) = Instruction::shift_value_by_imm(
         registers_lock.get_reg_register(instr.get_rm().unwrap()),
@@ -348,11 +349,10 @@ pub fn instr_data_reg_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &
 
     data_match_opcode(registers_lock, instr, rn, shifter_operand, shifter_carry_out);
 
-    // return result
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_data_reg_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_data_reg_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
     let (shifter_operand, shifter_carry_out) = Instruction::shift_value_by_reg(
         registers_lock.get_reg_register(instr.get_rm().unwrap()),
@@ -362,11 +362,10 @@ pub fn instr_data_reg_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &
 
     data_match_opcode(registers_lock, instr, rn, shifter_operand, shifter_carry_out);
 
-    // return result
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_data_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_data_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rn =  registers_lock.get_reg_register(instr.get_rn().unwrap());
     let (shifter_operand, shifter_carry_out) = Instruction::rotate_value(
         instr.get_rotate().unwrap(),
@@ -375,12 +374,11 @@ pub fn instr_data_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut 
 
     data_match_opcode(registers_lock, instr, rn, shifter_operand, shifter_carry_out);
 
-    // return result
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
 // p.463
-pub fn instr_ldrstr_shifted_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrstr_shifted_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let index = Instruction::shift_value_by_imm(
         registers_lock.get_reg_register(instr.get_rm().unwrap()),
         instr.get_imm_shift().unwrap(),
@@ -389,10 +387,10 @@ pub fn instr_ldrstr_shifted_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, register
 
     ldr_str_pre(ram_lock, registers_lock, instr, index);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrstr_shifted_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrstr_shifted_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let index = Instruction::shift_value_by_imm(
         registers_lock.get_reg_register(instr.get_rm().unwrap()),
         instr.get_imm_shift().unwrap(),
@@ -401,72 +399,72 @@ pub fn instr_ldrstr_shifted_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registe
 
     ldr_str_post(ram_lock, registers_lock, instr, index);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrstr_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrstr_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
     ldr_str_post(ram_lock, registers_lock, instr, rm);
     
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrstr_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrstr_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
     ldr_str_post(ram_lock, registers_lock, instr, rm);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrstr_imm_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrstr_imm_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let offset_12 = instr.get_imm_shift().unwrap();
 
     ldr_str_pre(ram_lock, registers_lock, instr, offset_12);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrstr_imm_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrstr_imm_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let offset_12 = instr.get_imm_shift().unwrap();
 
     ldr_str_post(ram_lock, registers_lock, instr, offset_12);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrhstrh_imm_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrhstrh_imm_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let offset_8 = instr.get_imm().unwrap() as Word;
 
     ldrh_strh_pre(ram_lock, registers_lock, instr, offset_8);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrhstrh_imm_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrhstrh_imm_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let offset_8 = instr.get_imm().unwrap() as Word;
 
     ldrh_strh_post(ram_lock, registers_lock, instr, offset_8);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrhstrh_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrhstrh_reg_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
 
     ldrh_strh_pre(ram_lock, registers_lock, instr, rm);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_ldrhstrh_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldrhstrh_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
 
     ldrh_strh_post(ram_lock, registers_lock, instr, rm);
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
-pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     if instr.get_l_bit().unwrap() {
         let address_after_branch = registers_lock.get_pc_current_address() + 4;
         registers_lock.set_reg_register(Register::r14, address_after_branch);
@@ -484,21 +482,20 @@ pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
     trace!("instr_b: {}pc {}offset {}target", instr.get_pc_address(), instr.get_offset().unwrap(), target_address);
     registers_lock.set_pc(target_address);
 
-    registers_lock.get_pc()
+    NOP
 }
 
-pub fn instr_bx(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
-    let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
+pub fn instr_bx(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
+    let rm = registers_lock.get_reg_register(instr.get_rm().unwrap()) + 4;
 
-    // TODO: test to ensure CPU branches to proper PC address
-    registers_lock.set_t_flag(rm & 1 != 0);
+    registers_lock.set_t_flag(util::word_lsb_to_bool(rm));
     registers_lock.set_pc(rm & 0xFFFFFFFE);
 
-    registers_lock.get_pc()
+    NOP
 }
 
 // p.187
-pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
     let number_of_set_bits_in_reg_list = instr.get_reg_list().unwrap().count_ones();
 
@@ -533,10 +530,10 @@ pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mut
 
     assert_eq!(end_address, address - 4);
 
-    0
+    NOP
 }
 
-pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let rs = registers_lock.get_reg_register(instr.get_rs().unwrap());
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap());
 
@@ -548,22 +545,24 @@ pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
         registers_lock.set_z_flag(rd == 0);
     }
 
-    registers_lock.get_reg_register(instr.get_rd().unwrap())
+    NOP
 }
 
 // p.58, 360
-pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, _instr: Instruction) -> Word {
-    // TODO: fill in rest of instruction
-    // https://protect.bju.edu/cps/courses/cps310/lectures/lecture11/
-    registers_lock.set_cpsr_mode(Mode::SVC);
-    registers_lock.set_cpsr_flag(5, false); // ARM state
-    registers_lock.set_cpsr_flag(7, true);  // disable interrupts
-    registers_lock.set_pc(0x8);
+pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
+    // actual SWI processing is done post-execute by processor in CPU::step
 
-    0
+    if instr.get_swi().unwrap() == 0x11 {
+        return HLT
+    // these conditions need to be handled by the outer CPU::step context to access the app thread
+    } else if instr.get_swi().unwrap() == 0x0 || instr.get_swi().unwrap() == 0x6a {
+        return SWI
+    }
+
+    NOP
 }
 
-pub fn instr_mrs(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_mrs(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     if instr.get_gpregister().unwrap() {
         let spsr = registers_lock.get_spsr();
         registers_lock.set_reg_register(instr.get_rd().unwrap(), spsr);
@@ -572,11 +571,10 @@ pub fn instr_mrs(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
         registers_lock.set_reg_register(instr.get_rd().unwrap(), cpsr);
     }
 
-    0
+    NOP
 }
 
 fn instr_msr(registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, operand: Word) {
-    // TODO: verify mask constants (these are according to v6)
     // const UNALLOC_MASK: Word = 0x06F0FC00;
     const USER_MASK: Word    = 0xF80F0200;
     const PRIV_MASK: Word    = 0x000001DF;
@@ -592,14 +590,8 @@ fn instr_msr(registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction,
                           (if util::test_bit(field_mask, 2) { 0x00FF0000 } else { 0x0 }) |
                           (if util::test_bit(field_mask, 3) { 0xFF000000 } else { 0x0 });
     if !instr.get_gpregister().unwrap() {
-        // if registers_lock.current_mode_has_spsr() {
-            // if (operand & STATE_MASK) == 0 {
-                // assumed privaleged mode since working with SYS rather than USER mode
-                mask = byte_mask & (USER_MASK | PRIV_MASK);
-            // }
-        // } else {
-        //     mask = byte_mask & USER_MASK
-        // }
+        // assumed privaleged mode since working with SYS rather than USER mode
+        mask = byte_mask & (USER_MASK | PRIV_MASK);
         registers_lock.set_cpsr((cpsr & !mask) | (operand & mask));
     } else {
         if registers_lock.current_mode_has_spsr() {
@@ -609,18 +601,18 @@ fn instr_msr(registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction,
     }
 }
 
-pub fn instr_msr_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_msr_imm(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let operand = instr.get_imm().unwrap().rotate_right((instr.get_rotate().unwrap() * 2) as Word) as Word;
     instr_msr(registers_lock, instr, operand);
-    0
+    NOP
 }
 
-pub fn instr_msr_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> Word {
+pub fn instr_msr_reg(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     let operand = registers_lock.get_reg_register(instr.get_rm().unwrap());
     instr_msr(registers_lock, instr, operand);
-    0
+    NOP
 }
 
-pub fn instr_nop(_ram_lock: &mut MutexGuard<'_, RAM>, _registers_lock: &mut MutexGuard<'_, Registers>, _instr: Instruction) -> Word {
-    0
+pub fn instr_nop(_ram_lock: &mut MutexGuard<'_, RAM>, _registers_lock: &mut MutexGuard<'_, Registers>, _instr: Instruction) -> InstrExecuteCondition {
+    NOP
 }

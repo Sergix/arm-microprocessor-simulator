@@ -507,10 +507,7 @@ impl Registers {
         match self.get_cpsr_mode() {
             Mode::SVC => self.write_word(SPSR_SVC_ADDR, value),
             Mode::IRQ => self.write_word(SPSR_IRQ_ADDR, value),
-            _ => {
-                // TODO
-                todo!("throw? or store in CPSR?");
-            }
+            _ => self.set_cpsr(value)
         }
     }
 
@@ -561,7 +558,7 @@ impl Memory for Registers {
     fn get_checksum(&self) -> Checksum { 0 }
     fn set_checksum(&mut self, _checksum: Checksum) { }
     fn get_update_frontend_checksum(&self) -> bool { false }
-    fn set_update_frontend_checksum(&mut self, state: bool) { }
+    fn set_update_frontend_checksum(&mut self, _state: bool) { }
 }
 
 impl Default for Registers {

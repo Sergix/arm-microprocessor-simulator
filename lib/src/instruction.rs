@@ -2,7 +2,7 @@ use tokio::sync::MutexGuard;
 
 use crate::{execute, util};
 use crate::memory::{Byte, Word, Register, RAM, Registers, AddressSize};
-use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType, LSH, LDMCode};
+use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType, LSH, LDMCode, InstrExecuteCondition};
 
 // This is the parent trait that contains all the default implementations
 // for each instruction; all the getters and setters are implemented directly
@@ -13,8 +13,8 @@ pub trait TInstruction {
     fn decode(&self);
     fn encode(&self);
 
-    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word);
-    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word;
+    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> InstrExecuteCondition);
+    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> InstrExecuteCondition;
 
     fn get_name(&self) -> String;
     // fn get_instr(&self) -> Word;
@@ -217,7 +217,7 @@ pub trait TInstruction {
 #[derive(Clone, Copy)]
 pub struct Instruction {
     _type: InstrType,
-    execute: Option<fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word>,
+    execute: Option<fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> InstrExecuteCondition>,
     rn: Option<Register>,
     rd: Option<Register>,
     rm: Option<Register>,
@@ -391,11 +391,11 @@ impl TInstruction for Instruction {
         self.imm = Some(imm);
     }
 
-    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word) {
+    fn set_execute(&mut self, f: fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> InstrExecuteCondition) {
         self.execute = Some(f);
     }
 
-    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> Word {
+    fn get_execute(&self) -> fn(&mut MutexGuard<'_, RAM>, &mut MutexGuard<'_, Registers>, Instruction) -> InstrExecuteCondition {
         self.execute.unwrap()
     }
 
@@ -602,11 +602,10 @@ pub fn instr_ldrstr_shifted_reg_pre(condition: Word, add_sub: Word, byte_word: W
     let mut instr = Instruction::new(InstrType::LDRSTRShiftRegPre);
     instr.set_condition(condition); 
     instr.set_addr_mode(true);
-    // TODO: move logic for calls like this to the interior of the setter?
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_byte_word((byte_word & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_byte_word(util::word_lsb_to_bool(byte_word));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_imm_shift(imm);
@@ -621,10 +620,10 @@ pub fn instr_ldrstr_shifted_reg_post(condition: Word, add_sub: Word, byte_word: 
     let mut instr = Instruction::new(InstrType::LDRSTRShiftRegPost);
     instr.set_condition(condition); 
     instr.set_addr_mode(false);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_byte_word((byte_word & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_byte_word(util::word_lsb_to_bool(byte_word));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_imm_shift(imm);
@@ -639,10 +638,10 @@ pub fn instr_ldrstr_reg_pre(condition: Word, add_sub: Word, byte_word: Word, wri
     let mut instr = Instruction::new(InstrType::LDRHSTRHRegPre);
     instr.set_condition(condition); 
     instr.set_addr_mode(true);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_byte_word((byte_word & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_byte_word(util::word_lsb_to_bool(byte_word));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_rm(rm);
@@ -655,10 +654,10 @@ pub fn instr_ldrstr_reg_post(condition: Word, add_sub: Word, byte_word: Word, wr
     let mut instr = Instruction::new(InstrType::LDRHSTRHRegPost);
     instr.set_condition(condition); 
     instr.set_addr_mode(false);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_byte_word((byte_word & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_byte_word(util::word_lsb_to_bool(byte_word));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_rm(rm);
@@ -671,10 +670,10 @@ pub fn instr_ldrstr_imm_pre(condition: Word, add_sub: Word, byte_word: Word, wri
     let mut instr = Instruction::new(InstrType::LDRSTRImmPre);
     instr.set_condition(condition); 
     instr.set_addr_mode(true);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_byte_word((byte_word & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_byte_word(util::word_lsb_to_bool(byte_word));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_imm_shift(imm);
@@ -687,10 +686,10 @@ pub fn instr_ldrstr_imm_post(condition: Word, add_sub: Word, byte_word: Word, wr
     let mut instr = Instruction::new(InstrType::LDRSTRImmPost);
     instr.set_condition(condition); 
     instr.set_addr_mode(false);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_byte_word((byte_word & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_byte_word(util::word_lsb_to_bool(byte_word));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_imm_shift(imm);
@@ -703,9 +702,9 @@ pub fn instr_ldrhstrh_imm_pre(condition: Word, add_sub: Word, writeback: Word, l
     let mut instr = Instruction::new(InstrType::LDRHSTRHImmPre);
     instr.set_condition(condition); 
     instr.set_addr_mode(true);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_lsh(lsh);
@@ -719,9 +718,9 @@ pub fn instr_ldrhstrh_imm_post(condition: Word, add_sub: Word, writeback: Word, 
     let mut instr = Instruction::new(InstrType::LDRHSTRHImmPost);
     instr.set_condition(condition); 
     instr.set_addr_mode(false);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_lsh(lsh);
@@ -735,9 +734,9 @@ pub fn instr_ldrhstrh_reg_pre(condition: Word, add_sub: Word, writeback: Word, l
     let mut instr = Instruction::new(InstrType::LDRHSTRHRegPre);
     instr.set_condition(condition); 
     instr.set_addr_mode(true);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_lsh(lsh);
@@ -751,9 +750,9 @@ pub fn instr_ldrhstrh_reg_post(condition: Word, add_sub: Word, writeback: Word, 
     let mut instr = Instruction::new(InstrType::LDRHSTRHRegPost);
     instr.set_condition(condition); 
     instr.set_addr_mode(false);
-    instr.set_add_sub((add_sub & 0x1) != 0);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_add_sub(util::word_lsb_to_bool(add_sub));
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
     instr.set_lsh(lsh);
@@ -796,8 +795,8 @@ pub fn instr_ldmstm(condition: Word, ldm_code: Word, s_bit: Word, writeback: Wor
     instr.set_condition(condition); 
     instr.set_ldm(ldm_code);
     instr.set_s_bit(s_bit);
-    instr.set_writeback((writeback & 0x1) != 0);
-    instr.set_ldr_str((ldr_str & 0x1) != 0);
+    instr.set_writeback(util::word_lsb_to_bool(writeback));
+    instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_reg_list(reg_list);
     instr.set_execute(execute::instr_ldmstm);

@@ -28,9 +28,12 @@ interface ICPUPayload {
 	mode: string
 }
 
-interface ITerminalPayload {
+interface ITerminalPutcharPayload {
 	char: string
-	prompt_bytes: number
+}
+
+interface ITerminalReadlinePayload {
+	max_bytes: number
 }
 
 // array containing tuple, each with

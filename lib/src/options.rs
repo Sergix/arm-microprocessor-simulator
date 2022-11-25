@@ -87,7 +87,7 @@ impl Options {
             }
         };
 
-        self.exec = match matches.args.get("traceall") {
+        self.traceall = match matches.args.get("traceall") {
             Some(arg) => {
                 if arg.occurrences == 0 {
                     false

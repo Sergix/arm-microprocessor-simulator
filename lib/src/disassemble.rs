@@ -1,7 +1,5 @@
 use std::fmt;
 
-use log::trace;
-
 use crate::{cpu_enum::{Condition, ShiftType, LDMCode, InstrType, DataOpcode}, memory::{Word, Register}, instruction::{Instruction, TInstruction}, util};
 
 fn get_s_bit_str(s_bit: bool) -> String {
@@ -69,7 +67,6 @@ fn get_rm_sign_str(rm: Register, add: bool) -> String {
 }
 
 fn get_shift_str(shift_type: ShiftType, imm: Word) -> String {
-    // TODO: RRX shift? p.462
     format!("{} #{}",
         shift_type.to_string().to_lowercase(),
         imm
@@ -161,7 +158,6 @@ impl fmt::Display for Instruction {
                 )?;
             },
             InstrType::DataRegImm => {
-                // TODO: ignore rn if mov or mvn
                 // TODO: refactor the data disassemblies
 
                 // optional rn
@@ -174,9 +170,14 @@ impl fmt::Display for Instruction {
                 };
                 
                 // optional operand2
-                // TODO: ignore if zero shift
                 let operand2 = match self.get_imm_shift() {
-                    Some(_) => format!("{} #{}", self.get_shift_type().unwrap().to_string().to_lowercase(), self.get_imm_shift().unwrap().to_string()),
+                    Some(_) => {
+                        if self.get_imm_shift().unwrap() == 0 {
+                            "".to_string()
+                        } else {
+                            format!("{} #{}", self.get_shift_type().unwrap().to_string().to_lowercase(), self.get_imm_shift().unwrap().to_string())
+                        }
+                    },
                     None => "".to_string(),
                 };
                 

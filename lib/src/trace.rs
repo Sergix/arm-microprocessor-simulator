@@ -34,7 +34,7 @@ impl TraceFile {
         self.f = None;
     }
     
-    pub fn append_trace_file_line(&mut self, trace_step: Word, pc: Word, checksum: Checksum, n: Byte, c: Byte, z: Byte, v: Byte, mode: Mode, regs: Vec<Word>) {        
+    pub fn append_trace_file_line(&mut self, trace_step: Word, pc: Word, checksum: Checksum, n: Byte, c: Byte, z: Byte, v: Byte, mode: Mode, regs: Vec<Word>) { 
         if self.f.is_none() {
             return
         }
@@ -56,6 +56,8 @@ impl TraceFile {
             .join(" ");
 
         writeln!(self.f.as_ref().unwrap(), "{:06} {:08X} {:08X} {}{}{}{} {} {} ", trace_step, pc, checksum, n, c, z, v, mode.to_string(), regs_string).unwrap();
+
+        self.f.as_ref().unwrap().flush().unwrap();
     }
 }
 

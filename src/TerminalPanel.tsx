@@ -29,14 +29,14 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
         invoke('cmd_terminal_prompt_input', { prompt_input: promptInput() })
     }
 
-    listen('cmd_terminal_prompt', ({ payload }: { payload: ITerminalPayload }) => {
+    listen('cmd_terminal_prompt', ({ payload }: { payload: ITerminalReadlinePayload }) => {
         trace('SolidJS[TerminalPanel.listen] prompting user for input')
         setPrompt(true)
-        setPromptLen(payload.prompt_bytes)
+        setPromptLen(payload.max_bytes)
         setPrompt(true)
     })
 
-    listen('cmd_terminal_append', ({ payload }: { payload: ITerminalPayload }) => {
+    listen('cmd_terminal_append', ({ payload }: { payload: ITerminalPutcharPayload }) => {
         trace(`SolidJS[TerminalPanel.listen] appending char ${payload.char} to terminal`)
         setOutput(output() + payload.char)
     })

@@ -135,3 +135,10 @@ impl fmt::Display for Mode {
         write!(f, "{:?}", self)
     }
 }
+
+#[derive(Copy, Clone, FromPrimitive, PartialEq)]
+pub enum InstrExecuteCondition {
+    HLT,
+    SWI,
+    NOP
+}
