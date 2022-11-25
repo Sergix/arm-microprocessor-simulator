@@ -96,6 +96,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         ram_lock.checksum = ram_lock.calculate_checksum();
         ram_lock.loaded = true;
         ram_lock.endianness = elf_data.1;
+        
         registers_lock.clear_nzcv();
         registers_lock.set_cpsr_mode(Mode::SVC);
 

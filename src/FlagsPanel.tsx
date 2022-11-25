@@ -23,13 +23,6 @@ const FlagsPanel: Component<IFlagsProp> = (prop: IFlagsProp) => {
         setFlags(payload)
     })
 
-    onMount(async () => {
-        log.trace("SolidJS[FlagsPanel.onMount]: getting CPSR flags state...")
-
-        const payload: IFlagsPayload = await invoke('cmd_get_flags')
-        setFlags(payload)
-    })
-
     return (
         <section>
             <h3>Flags</h3>

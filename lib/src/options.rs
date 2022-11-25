@@ -13,6 +13,8 @@ impl Options {
     pub fn parse(&mut self, matches: Matches) {
         // matches { args, subcommand }
         // args HashMap<String, ArgData>, ArgData { value, occurances }
+        
+        // TODO: refactor
 
         match matches.args.get("help") {
             Some(arg) => {

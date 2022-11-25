@@ -9,17 +9,23 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
     const [promptInput, setPromptInput] = createSignal("")
     const [promptLen, setPromptLen] = createSignal(0)
 
-    const emitInputInterrupt = (e: InputEvent) => {
-        trace(`SolidJS[TerminalPanel.emitInputInterrupt] sending char ${e.data} to IRQ interrupt line`)
+    const emitInputInterrupt = (e: KeyboardEvent) => {
+        e.preventDefault()
 
-        let lastChar = 0
-
-        if (e.inputType === "insertText") {
-            lastChar = e.data?.charCodeAt(0) || 0
-        } else {
-            lastChar = 8 // backspace
+        // ignore modifiers
+        if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) {
+            return
         }
 
+        trace(`SolidJS[TerminalPanel.emitInputInterrupt] sending char ${e.key}=${e.keyCode} to IRQ interrupt line`)
+        
+        let lastChar = e.key.charCodeAt(0);
+
+        // e.keyCode does not map to uppercase/lowercase automatically, so use charCode,
+        // but if it's not a letter key, map to keyCode
+        if (!RegExp(/^[a-z0-9]+$/i).test(String.fromCharCode(e.keyCode))) {
+            lastChar = e.keyCode
+        }
         invoke('cmd_terminal_input_interrupt', { lastChar })
     }
 
@@ -42,10 +48,15 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
         setOutput(output() + payload.char)
     })
 
+    listen('cmd_terminal_clear', ({ payload }: { payload: ITerminalPutcharPayload }) => {
+        trace(`SolidJS[TerminalPanel.listen] clearing terminal`)
+        setOutput("")
+    })
+
     return (
         <section class="w-full">
             <h3>Terminal</h3>
-            <textarea class="w-full h-52 resize-none rounded-sm bg-slate-800 p-2 focus:shadow-lg transition-all font-mono" onInput={emitInputInterrupt}>
+            <textarea readonly class="w-full h-52 resize-none rounded-sm bg-slate-800 p-2 focus:shadow-lg transition-all font-mono" onKeyUp={emitInputInterrupt}>
                 {output()}
             </textarea>
             <Show when={prompt()}>

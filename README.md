@@ -169,8 +169,7 @@ When one of the NZCV flags is active, the flag's icon will be green.
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
 - Panels are not resized when the window's height changes, only the width
-- Intentional: attempting to execute data processing comparison instructions (`TEQ`, `CMP`, ...) will cause the program to panic
-- Some of the data processing disassemblies are inaccurate or have uneccessary components (i.e. shifts with `#0`, `Rn` for `MOV` and `MVN`, etc.)
+- Loading some IO-based programs after running an IO-based program can cause the program to hang due to thread locks
 
 ## [Project Journal](CHANGELOG.md)
 

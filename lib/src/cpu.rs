@@ -8,7 +8,9 @@ use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_AD
 pub struct CPUThreadWatcher {
     running: bool,
     prompt_flag: bool,
-    prompt_input: String
+    prompt_input: String,
+    irq_flag: bool,
+    irq_last_char: char
 }
 
 impl CPUThreadWatcher {
@@ -33,8 +35,28 @@ impl CPUThreadWatcher {
         self.prompt_flag
     }
 
-    pub fn reset_prompt_flag(&mut self) {
+    pub fn clear_prompt_flag(&mut self) {
         self.prompt_flag = false;
+    }
+
+    pub fn set_irq_flag(&mut self) {
+        self.irq_flag = true;
+    }
+
+    pub fn clear_irq_flag(&mut self) {
+        self.irq_flag = false;
+    }
+
+    pub fn get_irq_flag(&self) -> bool {
+        self.irq_flag
+    }
+
+    pub fn set_irq_last_char(&mut self, c: char) {
+        self.irq_last_char = c;
+    }
+
+    pub fn get_irq_last_char(&self) -> char {
+        self.irq_last_char
     }
 }
 
@@ -43,7 +65,9 @@ impl Default for CPUThreadWatcher {
         Self {
             running: false,
             prompt_flag: false,
-            prompt_input: String::new()
+            prompt_input: String::new(),
+            irq_flag: false,
+            irq_last_char: '\0'
         }
     }
 }
@@ -69,7 +93,6 @@ pub struct CPU {
     trace: bool,
     trace_step: Word,
     irq: bool,
-    last_char: char
 }
 
 impl CPU {
@@ -79,7 +102,6 @@ impl CPU {
             trace: false,
             trace_step: 1,
             irq: false,
-            last_char: '\0'
         }
     }
 
@@ -99,18 +121,6 @@ impl CPU {
 
     pub fn get_irq(&self) -> bool {
         self.irq
-    }
-
-    pub fn set_irq(&mut self) {
-        self.irq = true
-    }
-
-    pub fn clear_irq(&mut self) {
-        self.irq = false
-    }
-
-    pub fn set_last_char(&mut self, last_char: char) {
-        self.last_char = last_char
     }
 
     pub async fn stop(&self, app_handle: AppHandle) {
@@ -186,11 +196,6 @@ impl CPU {
         }
     }
 
-    // will be called by SWI instruction
-    pub fn interrupt(&self) {
-        todo!();
-    }
-
     pub fn add_breakpoint(&mut self, address: AddressSize) {
         trace!("add_breakpoint: {}", address);
         self.breakpoints.push(address)
@@ -208,6 +213,8 @@ impl CPU {
     }
     
     pub async fn run(&mut self, app_handle: AppHandle) {
+        // TODO: cleanup, have a better way to signal state between CPU::run and CPU::step
+
         // update thread state and drop immediately
         {
             let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
@@ -246,6 +253,8 @@ impl CPU {
 
     // returns true if HLT
     pub async fn step(&mut self, app_handle: AppHandle) -> bool {
+        // TODO: cleanup
+
         let ram_state: RAMState = app_handle.state();
         let registers_state: RegistersState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
@@ -265,6 +274,17 @@ impl CPU {
         // halt when instruction is HLT
         if instr_raw == 0 { registers_lock.inc_pc(); return true }
 
+        // check irq and thread state and drop immediately
+        // CPUThreadWatcherState cannot be shared across entire function since interrupt may occur mid-step
+        //  or while step is waiting for prompt event from frontend
+        let irq;
+        let last_char: char;
+        {
+            let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
+            irq = cpu_thread_watcher_state.lock().await.get_irq_flag();
+            last_char = cpu_thread_watcher_state.lock().await.get_irq_last_char();
+        }
+
         // get the instruction struct from the raw Word
         let mut instr: Instruction = self.decode(instr_raw);
         //
@@ -276,13 +296,13 @@ impl CPU {
         // rd = value to write
         if util::is_write_instr(instr) && instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
             let arg_char = char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0');
-            trace!("step: mapping hardware display event, char = {}", arg_char);
+            trace!("step: mapping hardware display event, char = 0x{:x}", arg_char as Byte);
             app_handle.emit_all("cmd_terminal_append", TerminalPutcharPayload {
                 char: arg_char
             }).unwrap();
         }
         // inject last character from keyboard event if needed
-        instr.set_last_char(self.last_char);
+        instr.set_last_char(last_char);
 
         // pass the necessary state objects and instruction struct;
         // state guards need to be passed so that the execute method can properly access/modify
@@ -331,7 +351,7 @@ impl CPU {
                 registers_lock.set_cpsr_mode(Mode::SVC);
                 registers_lock.set_cpsr_flag(5, false); // ARM state
                 registers_lock.set_cpsr_flag(7, true);  // disable interrupts
-                registers_lock.set_pc(0x10); // extra 4 bytes since PC is incremented beforehand
+                registers_lock.set_pc(0x08+8); // add 8 bytes for PC
 
                 if instr.get_swi().unwrap() == 0x0 {
                     // putchar
@@ -366,7 +386,7 @@ impl CPU {
                         let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
                         let cpu_thread_watcher_lock = &mut cpu_thread_watcher_state.lock().await;
                         input = cpu_thread_watcher_lock.get_prompt_input();
-                        cpu_thread_watcher_lock.reset_prompt_flag();
+                        cpu_thread_watcher_lock.clear_prompt_flag();
                     }
 
                     trace!("step: input received: {} {}bytes {}dest", input, arg_max_bytes, arg_dest_addr);
@@ -389,22 +409,24 @@ impl CPU {
 
         // proccess IRQ interrupt from IRQ input line
         // only when IRQ interrupts are not disabled
-        if self.irq && !registers_lock.get_i_flag() {
+        if irq && !registers_lock.get_i_flag() {
             // A2.6.8
 
-            trace!("step: received IRQ event, handling...");
+            trace!("step: received IRQ event for char {}, handling...", last_char);
 
-            self.irq = false;
-            registers_lock.set_i_flag(false);
+            {
+                let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
+                cpu_thread_watcher_state.lock().await.clear_irq_flag();
+            }
 
             let pc = registers_lock.get_pc();
             let cpsr = registers_lock.get_cpsr();
-            registers_lock.set_reg_register(Register::r14_irq, pc - 8); // TODO: is this correct? should be next instruction + 4
+            registers_lock.set_reg_register(Register::r14_irq, pc);
             registers_lock.set_spsr_irq(cpsr);
             registers_lock.set_cpsr_mode(Mode::IRQ);
-            registers_lock.set_cpsr_flag(7, true);  // disable interrupts
+            registers_lock.set_i_flag(true);  // disable interrupts
             registers_lock.set_cpsr_flag(8, true);  // disable imprecise data aborts
-            registers_lock.set_pc(0x20); // add 8 because of PC increment
+            registers_lock.set_pc(0x18+8); // add 8 bytes for PC
         }
 
         // continue normally
@@ -419,7 +441,6 @@ impl Default for CPU {
             trace: false,
             trace_step: 1,
             irq: false,
-            last_char: '\0'
         }
     }
 }

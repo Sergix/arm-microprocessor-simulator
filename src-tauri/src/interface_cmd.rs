@@ -13,12 +13,13 @@ pub async fn emit_payloads (app_handle: AppHandle) {
 
         let registers_state: RegistersState = app_handle.state();
         let registers_lock = &mut registers_state.lock().await;
+        trace!("emit_payloads: obtained registers lock");
         let cpu_state: CPUState = app_handle.state();
         let cpu_lock = &mut cpu_state.lock().await;
+        trace!("emit_payloads: obtained CPU lock");
         let ram_state: RAMState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
-
-        trace!("emit_payloads: obtained state locks");
+        trace!("emit_payloads: obtained RAM lock");
 
         app_handle.emit_all("cpu_update", CPUPayload {
             trace: cpu_lock.get_trace(),
@@ -85,13 +86,24 @@ pub async fn cmd_stop(app_handle: AppHandle) -> Result<bool, ()> {
     
     let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
     cpu_thread_state.lock().await.set_running(false);
-
+    
     Ok(true)
 }
 
 #[tauri::command]
 pub async fn cmd_reset(filename: String, app_handle: AppHandle) -> Result<(), ()> {
     trace!("cmd_reset: clearing memory and reloading binary...");
+
+    // stop CPU first
+    let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
+    cpu_thread_state.lock().await.set_running(false);
+
+    // reset IRQ line
+    cpu_thread_state.lock().await.clear_irq_flag();
+
+    // clear terminal
+    app_handle.emit_all("cmd_terminal_clear", {}).unwrap();
+
     crate::loader_cmd::load_elf(filename, app_handle.clone()).await;
     emit_payloads(app_handle.clone()).await;
     Ok(())

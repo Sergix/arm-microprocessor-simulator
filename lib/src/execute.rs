@@ -91,7 +91,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
         },
         DataOpcode::MOV => {
             let rd = shifter_operand;
-
+            
             if instr.get_s_bit().unwrap() && instr.get_rd().unwrap() == Register::r15 {
                 if registers_lock.current_mode_has_spsr() {
                     let spsr: Word = registers_lock.get_spsr();
@@ -466,10 +466,12 @@ pub fn instr_ldrhstrh_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_loc
 
 pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     if instr.get_l_bit().unwrap() {
+        // TODO: simplify this, since this should be "get_pc() + 4"
         let address_after_branch = registers_lock.get_pc_current_address() + 4;
         registers_lock.set_reg_register(Register::r14, address_after_branch);
     }
 
+    // TODO: figure out how to make this much simpler
     // increment by an extra 4 bytes because:
     // - CPU fetch
     // - CPU decode
@@ -486,6 +488,7 @@ pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
 }
 
 pub fn instr_bx(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
+    // TODO: why + 4?
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap()) + 4;
 
     registers_lock.set_t_flag(util::word_lsb_to_bool(rm));
