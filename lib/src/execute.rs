@@ -1,7 +1,7 @@
 use log::trace;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR, SignedWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, Mode, InstrExecuteCondition::{NOP, HLT, SWI, self}}, util};
+use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR, SignedWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, InstrExecuteCondition::{NOP, HLT, SWI, self}}, util};
 
 // this method matches all the data operations with their appropriate operation
 // the caller is expected to resolve the operand2 ahead of time; this function
@@ -153,7 +153,7 @@ fn data_match_opcode(registers_lock: &mut MutexGuard<'_, Registers>, instr: Inst
                 let (alu_out, overflow) = (rn as SignedWord).overflowing_add(shifter_operand as SignedWord);
                 registers_lock.set_n_flag(util::test_bit(alu_out as Word, 31));
                 registers_lock.set_z_flag(alu_out == 0);
-                registers_lock.set_c_flag(shifter_operand > rn); // TODO: carries if shifter_operand > rn?
+                registers_lock.set_c_flag(shifter_operand > rn);
                 registers_lock.set_v_flag(overflow);
             },
             _ => ()
@@ -478,7 +478,7 @@ pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
     // - CPU increments PC by 4
     // -> CPU only increments 1 instruction ahead
     // => need to increment by extra 4 bytes here to ensure CPU PC is two instructions ahead
-    let target_address: Word = (instr.get_pc_address() as i32 + instr.get_offset().unwrap() + 4) as Word;
+    let target_address: Word = (instr.get_pc_address() as SignedWord + instr.get_offset().unwrap() + 4) as Word;
     trace!("instr_b: {}pc {}offset {}target", instr.get_pc_address(), instr.get_offset().unwrap(), target_address);
     registers_lock.set_pc(target_address);
 
@@ -499,11 +499,11 @@ pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mut
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
     let number_of_set_bits_in_reg_list = instr.get_reg_list().unwrap().count_ones();
 
-    // p.483
+    // A5.4.2
     let start_address = match instr.get_ldm().unwrap() {
         LDMCode::DecAfter => rn - (number_of_set_bits_in_reg_list * 4) + 4,
         LDMCode::IncAfter => rn,
-        LDMCode::DecBefore => rn - (number_of_set_bits_in_reg_list * 4),
+        LDMCode::DecBefore => rn - (number_of_set_bits_in_reg_list * 4), // TODO: sometimes causes overflow on IRQ handler calls
         LDMCode::IncBefore => rn + 4,
     };
     let end_address = match instr.get_ldm().unwrap() {
@@ -549,7 +549,7 @@ pub fn instr_mul(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
 }
 
 // p.58, 360
-pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
+pub fn instr_swi(_ram_lock: &mut MutexGuard<'_, RAM>, _registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     // actual SWI processing is done post-execute by processor in CPU::step
 
     if instr.get_swi().unwrap() == 0x11 {

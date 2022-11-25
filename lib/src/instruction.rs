@@ -1,7 +1,7 @@
 use tokio::sync::MutexGuard;
 
 use crate::{execute, util};
-use crate::memory::{Byte, Word, Register, RAM, Registers, AddressSize};
+use crate::memory::{Byte, Word, Register, RAM, Registers, AddressSize, SignedWord};
 use crate::cpu_enum::{Condition, ShiftType, DataOpcode, InstrType, LSH, LDMCode, InstrExecuteCondition};
 
 // This is the parent trait that contains all the default implementations
@@ -52,8 +52,8 @@ pub trait TInstruction {
     fn get_l_bit(&self) -> Option<bool>;
     fn set_l_bit(&mut self, bit: Word);
 
-    fn get_offset(&self) -> Option<i32>;
-    fn set_offset(&mut self, offset: i32);
+    fn get_offset(&self) -> Option<SignedWord>;
+    fn set_offset(&mut self, offset: SignedWord);
 
     fn get_lsh(&self) -> Option<LSH>;
     fn set_lsh(&mut self, lsh: Word);
@@ -114,8 +114,8 @@ pub trait TInstruction {
                         (0xffffffff, rm_msb)
                     }
                 } else {
-                    // cast to i32 to force ASR in Rust
-                    (((rm as i32) >> shift_imm) as Word, util::get_bit(rm, shift_imm - 1))
+                    // cast to signed to force ASR in Rust
+                    (((rm as SignedWord) >> shift_imm) as Word, util::get_bit(rm, shift_imm - 1))
                 }
             },
             ShiftType::ROR => {
@@ -160,8 +160,8 @@ pub trait TInstruction {
                 if rs_lsb == 0 {
                     (rm, c_flag as Word)
                 } else if rs_lsb < 32 {
-                    // cast to i32 to force ASR in Rust
-                    (((rm as i32) >> rs_lsb) as Word, util::get_bit(rm, rs_lsb - 1))
+                    // cast to signed to force ASR in Rust
+                    (((rm as SignedWord) >> rs_lsb) as Word, util::get_bit(rm, rs_lsb - 1))
                 } else {
                     if rm_msb == 0 {
                         (0, rm_msb)
@@ -236,7 +236,7 @@ pub struct Instruction {
     byte_word: Option<bool>,
     ldr_str: Option<bool>,
     l_bit: Option<bool>,
-    offset: Option<i32>,
+    offset: Option<SignedWord>,
     lsh: Option<LSH>,
     ldm: Option<LDMCode>,
     reg_list: Option<Word>,
@@ -467,11 +467,11 @@ impl TInstruction for Instruction {
         }
     }
 
-    fn get_offset(&self) -> Option<i32> {
+    fn get_offset(&self) -> Option<SignedWord> {
         self.offset
     }
 
-    fn set_offset(&mut self, offset: i32) {
+    fn set_offset(&mut self, offset: SignedWord) {
         self.offset = Some(offset)
     }
 
@@ -771,9 +771,9 @@ pub fn instr_b(condition: Word, l_bit: Word, offset: Word) -> Instruction {
     // if top bit is 1, extend
     instr.set_offset(
         if util::test_bit(offset, 23) {
-            ((offset | 0x3f000000) << 2) as i32
+            ((offset | 0x3f000000) << 2) as SignedWord
         } else {
-            (offset << 2) as i32
+            (offset << 2) as SignedWord
         }
     );
     instr.set_execute(execute::instr_b);

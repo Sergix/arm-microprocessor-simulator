@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{cpu_enum::{Condition, ShiftType, LDMCode, InstrType, DataOpcode}, memory::{Word, Register}, instruction::{Instruction, TInstruction}, util};
+use crate::{cpu_enum::{Condition, ShiftType, LDMCode, InstrType, DataOpcode}, memory::{Word, Register, SignedWord}, instruction::{Instruction, TInstruction}, util};
 
 fn get_s_bit_str(s_bit: bool) -> String {
     match s_bit {
@@ -280,7 +280,7 @@ impl fmt::Display for Instruction {
                 // ex: ball #20
                 //     {}{} {} 
 
-                let target_address = self.get_pc_address() as i32 + self.get_offset().unwrap();
+                let target_address = self.get_pc_address() as SignedWord + self.get_offset().unwrap();
 
                 fmt.write_str(
                     format!(

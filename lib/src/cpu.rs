@@ -3,10 +3,12 @@ use tauri::{AppHandle, Manager};
 use bitmatch::bitmatch;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR, Register}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{Mode, Condition, InstrExecuteCondition}};
+use crate::{memory::{Registers, RAM, Memory, Word, AddressSize, Byte, DISPLAY_ADDR, Register}, state::{RAMState, RegistersState, CPUThreadWatcherState, TraceFileState}, instruction::*, cpu_enum::{Mode, Condition, InstrExecuteCondition}, util};
 
 pub struct CPUThreadWatcher {
-    running: bool
+    running: bool,
+    prompt_flag: bool,
+    prompt_input: String
 }
 
 impl CPUThreadWatcher {
@@ -17,12 +19,31 @@ impl CPUThreadWatcher {
     pub fn is_running(&self) -> bool {
         self.running
     }
+
+    pub fn set_prompt_input(&mut self, value: String) {
+        self.prompt_flag = true;
+        self.prompt_input = value;
+    }
+
+    pub fn get_prompt_input(&self) -> String {
+        self.prompt_input.clone()
+    }
+
+    pub fn get_prompt_flag(&self) -> bool {
+        self.prompt_flag
+    }
+
+    pub fn reset_prompt_flag(&mut self) {
+        self.prompt_flag = false;
+    }
 }
 
 impl Default for CPUThreadWatcher {
     fn default() -> Self {
         Self {
-            running: false
+            running: false,
+            prompt_flag: false,
+            prompt_input: String::new()
         }
     }
 }
@@ -188,8 +209,10 @@ impl CPU {
     
     pub async fn run(&mut self, app_handle: AppHandle) {
         // update thread state and drop immediately
-        let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
-        cpu_thread_state.lock().await.set_running(true);
+        {
+            let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
+            cpu_thread_state.lock().await.set_running(true);
+        }
         
         trace!("run: stepping into cycle");
         // fetch-decode-execute
@@ -248,18 +271,18 @@ impl CPU {
         // inject possibly needed information into instruction before executing
         //
         instr.set_pc_address(registers_lock.get_pc());
-        // map display hardware event manually before delegating
+        // manually map any display hardware events before executing instruction
         // rn = DISPLAY_ADDR
         // rd = value to write
-        if instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
-            trace!("step: mapping hardware display event, char = ");
+        if util::is_write_instr(instr) && instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
+            let arg_char = char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0');
+            trace!("step: mapping hardware display event, char = {}", arg_char);
             app_handle.emit_all("cmd_terminal_append", TerminalPutcharPayload {
-                char: char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0')
+                char: arg_char
             }).unwrap();
         }
         // inject last character from keyboard event if needed
         instr.set_last_char(self.last_char);
-
 
         // pass the necessary state objects and instruction struct;
         // state guards need to be passed so that the execute method can properly access/modify
@@ -287,9 +310,12 @@ impl CPU {
         );
         self.trace_step += 1;
 
+        // handle instruction exceptions
         match exec_result {
             InstrExecuteCondition::HLT => {
                 trace!("step: hit SWI HLT");
+                // decrement PC to stop at HLT instruction in disassembly
+                registers_lock.dec_pc();
                 return true
             },
             InstrExecuteCondition::SWI => {
@@ -300,16 +326,12 @@ impl CPU {
                 let cpsr = registers_lock.get_cpsr();
                 let pc = registers_lock.get_pc();
 
-                // TODO: mode switching *should* happen after the SPSR is saved, but it needs to switch beforehand because of the implicit mappings below
+                registers_lock.set_reg_register(Register::r14_svc, pc - 4);
+                registers_lock.set_spsr_svc(cpsr);
                 registers_lock.set_cpsr_mode(Mode::SVC);
-                // automatically maps LR (r14) -> LR_svc when in SVC mode
-                // TODO: should it just be Register::r14_svc instead of having an implicit mapping?
-                registers_lock.set_reg_register(Register::r14, pc - 4);
-                // TODO: should it just be set_spsr_svc instead of having an implicit mapping?
-                registers_lock.set_spsr(cpsr);
                 registers_lock.set_cpsr_flag(5, false); // ARM state
                 registers_lock.set_cpsr_flag(7, true);  // disable interrupts
-                registers_lock.set_pc(0xc); // extra 4 bytes since PC is incremented after; TODO: check in CPU::step whether to increment extra on b/bx/swi?
+                registers_lock.set_pc(0x10); // extra 4 bytes since PC is incremented beforehand
 
                 if instr.get_swi().unwrap() == 0x0 {
                     // putchar
@@ -320,19 +342,46 @@ impl CPU {
                 } else if instr.get_swi().unwrap() == 0x6a {
                     // getline
                     let arg_dest_addr = registers_lock.get_reg_register(Register::r1);
-                    let arg_max_bytes = registers_lock.get_reg_register(Register::r2) - 1; // fit null terminator
+                    let arg_max_bytes = registers_lock.get_reg_register(Register::r2);
 
                     app_handle.emit_all("cmd_terminal_prompt", TerminalReadlinePayload {
-                        max_bytes: arg_max_bytes
+                        max_bytes: arg_max_bytes - 1 // fit null terminator
                     }).unwrap();
 
-                    // TODO: how to wait for frontend to return?
-                    //   - need some sort of promise/await call here
-                    //   - CPUThreadWatcher?
-                    //   - 
+                    // wait for frontend to return
+                    // frontend will update CPUThreadWatcher state
+                    loop {
+                        // check thread state and drop immediately
+                        {
+                            let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
+                            if cpu_thread_watcher_state.lock().await.get_prompt_flag() {
+                                break;
+                            }
+                        }
+                    }
 
-                    // TODO: append CR if received bytes < arg_max_bytes
-                    // TODO: append \0
+                    // get thread state and drop immediately
+                    let mut input;
+                    {
+                        let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
+                        let cpu_thread_watcher_lock = &mut cpu_thread_watcher_state.lock().await;
+                        input = cpu_thread_watcher_lock.get_prompt_input();
+                        cpu_thread_watcher_lock.reset_prompt_flag();
+                    }
+
+                    trace!("step: input received: {} {}bytes {}dest", input, arg_max_bytes, arg_dest_addr);
+
+                    // append CR if received bytes < (arg_max_bytes + \0)
+                    if input.len() < (arg_max_bytes - 1) as usize {
+                        input.push(0xd as char);
+                    }
+                    input.push('\0');
+
+                    let mut i = 0;
+                    for c in input.chars() {
+                        ram_lock.write_byte(arg_dest_addr + i, c as Byte);
+                        i += 1;
+                    }
                 }
             },
             InstrExecuteCondition::NOP => (),
@@ -341,7 +390,7 @@ impl CPU {
         // proccess IRQ interrupt from IRQ input line
         // only when IRQ interrupts are not disabled
         if self.irq && !registers_lock.get_i_flag() {
-            // TODO: A2.6.8
+            // A2.6.8
 
             trace!("step: received IRQ event, handling...");
 
@@ -350,18 +399,16 @@ impl CPU {
 
             let pc = registers_lock.get_pc();
             let cpsr = registers_lock.get_cpsr();
-            // TODO: mode switching *should* happen after the SPSR is saved, but it needs to switch beforehand because of the implicit mappings below
+            registers_lock.set_reg_register(Register::r14_irq, pc - 8); // TODO: is this correct? should be next instruction + 4
+            registers_lock.set_spsr_irq(cpsr);
             registers_lock.set_cpsr_mode(Mode::IRQ);
-            // automatically maps LR (r14) -> LR_irq when in IRQ mode
-            // TODO: should it just be Register::r14_irq instead of having an implicit mapping?
-            registers_lock.set_reg_register(Register::r14, pc - 8);
-            // TODO: should it just be set_spsr_irq instead of having an implicit mapping?
-            registers_lock.set_spsr(cpsr);
             registers_lock.set_cpsr_flag(7, true);  // disable interrupts
+            registers_lock.set_cpsr_flag(8, true);  // disable imprecise data aborts
             registers_lock.set_pc(0x20); // add 8 because of PC increment
         }
 
-        return false;
+        // continue normally
+        return false
     }
 }
 
@@ -382,8 +429,6 @@ mod tests {
     use crate::{cpu_enum::{DataOpcode, LDMCode, ShiftType, InstrType}, memory::Register};
 
     use super::*;
-
-    // TODO: test conditions
 
     #[test]
     fn test_decode_mov() {

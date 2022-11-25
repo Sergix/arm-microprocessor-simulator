@@ -110,6 +110,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             terminal_cmd::cmd_terminal_input_interrupt,
+            terminal_cmd::cmd_terminal_prompt_input,
             cpu_cmd::cmd_get_cpu,
             loader_cmd::cmd_get_elf,
             loader_cmd::cmd_load_elf,

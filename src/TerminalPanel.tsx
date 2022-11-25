@@ -12,21 +12,22 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
     const emitInputInterrupt = (e: InputEvent) => {
         trace(`SolidJS[TerminalPanel.emitInputInterrupt] sending char ${e.data} to IRQ interrupt line`)
 
-        let last_char: number = 0
+        let lastChar = 0
 
         if (e.inputType === "insertText") {
-            last_char = e.data?.charCodeAt(0) || 0
+            lastChar = e.data?.charCodeAt(0) || 0
         } else {
-            last_char = 8 // backspace
+            lastChar = 8 // backspace
         }
 
-        invoke('cmd_terminal_input_interrupt', { last_char })
+        invoke('cmd_terminal_input_interrupt', { lastChar })
     }
 
     const emitPromptInput = (e: SubmitEvent) => {
         trace(`SolidJS[TerminalPanel.emitPromptInput] sending prompt input "${promptInput()}" to CPU`)
-
-        invoke('cmd_terminal_prompt_input', { prompt_input: promptInput() })
+        setPrompt(false)
+        
+        invoke('cmd_terminal_prompt_input', { promptInput: promptInput() })
     }
 
     listen('cmd_terminal_prompt', ({ payload }: { payload: ITerminalReadlinePayload }) => {
@@ -49,8 +50,8 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
             </textarea>
             <Show when={prompt()}>
                 <form onSubmit={emitPromptInput}>
-                    <input type="text" placeholder='>' maxlength={promptLen()} onInput={(e) => setPromptInput((e.target as HTMLInputElement)?.value || "")}/>
-                    <button type="submit">ENTER</button>
+                    <input type="text" class="bg-slate-800 p-2 rounded-sm focus:shadow-lg" placeholder={"Enter up to " + promptLen() + " characters..."} maxlength={promptLen()} onInput={(e) => setPromptInput((e.target as HTMLInputElement)?.value || "")}/>
+                    <button type="submit" class="ml-4 bg-violet-900">ENTER</button>
                 </form>
             </Show>
         </section>

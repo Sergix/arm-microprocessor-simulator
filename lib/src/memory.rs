@@ -48,7 +48,14 @@ pub enum Register {
     r12 = 12,
     r13 = 13,
     r14 = 14,
-    r15 = 15
+    r15 = 15,
+    NOP_CPSR,
+    r13_svc,
+    r14_svc,
+    NOP_SPSR_svc,
+    r13_irq,
+    r14_irq,
+    NOP_SPSR_irq
 }
 
 impl fmt::Display for Register {
@@ -330,7 +337,7 @@ pub struct Registers {
 impl Registers {
     // fix indices when attempting to access banked registers on non-system modes
     pub fn get_register_mode_index(&mut self, index: usize) -> usize {
-        if index > 15 {
+        if index >= NUM_REGISTERS {
             panic!("Registers[get_register_mode_index]: register index out of range");
         }
 
@@ -354,7 +361,7 @@ impl Registers {
     }
 
     pub fn set_register(&mut self, index: usize, value: Word) {
-        if index > 15 {
+        if index >= NUM_REGISTERS {
             panic!("Registers[set_register]: register index out of range");
         }
 
@@ -367,7 +374,7 @@ impl Registers {
     }
 
     pub fn get_register(&mut self, index: usize) -> Word {
-        if index > 15 {
+        if index >= NUM_REGISTERS {
             panic!("Registers[get_register]: register index out of range");
         }
 
@@ -399,6 +406,11 @@ impl Registers {
 
     pub fn get_pc_current_address(&mut self) -> Word {
         self.get_pc() - 8
+    }
+
+    pub fn dec_pc(&mut self) {
+        let next_addr = self.get_pc().checked_sub(4).unwrap_or(0);
+        self.set_register(15, next_addr)
     }
 
     pub fn inc_pc(&mut self) {
@@ -509,6 +521,14 @@ impl Registers {
             Mode::IRQ => self.write_word(SPSR_IRQ_ADDR, value),
             _ => self.set_cpsr(value)
         }
+    }
+
+    pub fn set_spsr_svc(&mut self, value: Word) {
+        self.write_word(SPSR_SVC_ADDR, value);
+    }
+
+    pub fn set_spsr_irq(&mut self, value: Word) {
+        self.write_word(SPSR_IRQ_ADDR, value);
     }
 
     pub fn current_mode_has_spsr(&mut self) -> bool {
