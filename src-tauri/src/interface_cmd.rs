@@ -1,10 +1,9 @@
-use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState, TraceFileState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload }, cpu::CPUPayload};
+use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState, TraceFileState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload, Memory }, cpu::CPUPayload};
 use log::{trace};
 use tauri::{AppHandle, Manager};
 use crate::{memory_cmd::chunk_memory, disassembly_cmd::build_disassembly_payload};
 
 pub async fn emit_payloads (app_handle: AppHandle) {
-
     let disassembly_payload = build_disassembly_payload(app_handle.clone()).await;
     app_handle.emit_all("disassembly_update", disassembly_payload).unwrap();
 
@@ -38,14 +37,19 @@ pub async fn emit_payloads (app_handle: AppHandle) {
             i: registers_lock.get_v_flag()
         }).unwrap();
 
-        // notify ahead of time that the backend will be chunking memory
-        app_handle.emit_all("ram_chunking_signal", {}).unwrap();
-        
-        // emit last since it's the most expensive
-        app_handle.emit_all("ram_update", RAMPayload {
-            checksum: ram_lock.checksum,
-            memory_array: chunk_memory(ram_lock.memory_array.clone(), 0)
-        }).unwrap();
+        // check if checksum has changed
+        if ram_lock.get_update_frontend_checksum() {
+            // notify ahead of time that the backend will be chunking memory
+            app_handle.emit_all("ram_chunking_signal", {}).unwrap();
+            
+            // emit last since it's the most expensive
+            app_handle.emit_all("ram_update", RAMPayload {
+                checksum: ram_lock.checksum,
+                memory_array: chunk_memory(ram_lock.memory_array.clone(), 0)
+            }).unwrap();
+            
+            ram_lock.set_update_frontend_checksum(false);
+        }
     }
 }
 

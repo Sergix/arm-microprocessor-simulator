@@ -9,6 +9,7 @@ use crate::cpu_enum::Mode;
 pub type Byte = u8;
 pub type HalfWord = u16;
 pub type Word = u32;
+pub type SignedWord = i32;
 pub type AddressSize = u32;
 pub type Checksum = u32;
 
@@ -52,7 +53,15 @@ pub enum Register {
 
 impl fmt::Display for Register {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Register::r10 => write!(f, "sl"),
+            Register::r11 => write!(f, "fp"),
+            Register::r12 => write!(f, "il"),
+            Register::r13 => write!(f, "sp"),
+            Register::r14 => write!(f, "lr"),
+            Register::r15 => write!(f, "pc"),
+            _ => write!(f, "{:?}", self)
+        }
     }
 }
 
@@ -112,6 +121,8 @@ pub trait Memory {
     fn get_endianness(&self) -> Endianness;
     fn get_checksum(&self) -> Checksum;
     fn set_checksum(&mut self, checksum: Checksum);
+    fn get_update_frontend_checksum(&self) -> bool;
+    fn set_update_frontend_checksum(&mut self, state: bool);
 
     fn clear(&mut self) {
         let sz = self.get_size();
@@ -420,9 +431,6 @@ impl Registers {
     }
 
     pub fn set_cpsr_mode(&mut self, mode: Mode) {
-        // TODO: swap banked registers
-        log::trace!("set_cpsr_mode: swapping banked registers {}mode", self.get_cpsr());
-
         let mode_bits = mode as Byte;
         let cleared_mode_byte = self.read_byte(CPSR_ADDR + 3) & 0b11100000;
         self.write_byte(CPSR_ADDR + 3, cleared_mode_byte | mode_bits);
@@ -491,10 +499,7 @@ impl Registers {
         match self.get_cpsr_mode() {
             Mode::SVC => self.read_word(SPSR_SVC_ADDR),
             Mode::IRQ => self.read_word(SPSR_IRQ_ADDR),
-            _ => {
-                // TODO
-                todo!("throw? or return CPSR?");
-            }
+            _ => self.read_word(CPSR_ADDR)
         }
     }
 
@@ -555,6 +560,8 @@ impl Memory for Registers {
     // only to fulfill method stubs
     fn get_checksum(&self) -> Checksum { 0 }
     fn set_checksum(&mut self, _checksum: Checksum) { }
+    fn get_update_frontend_checksum(&self) -> bool { false }
+    fn set_update_frontend_checksum(&mut self, state: bool) { }
 }
 
 impl Default for Registers {
@@ -569,6 +576,7 @@ impl Default for Registers {
 
 pub struct RAM {
     pub checksum: Checksum,
+    pub update_frontend_checksum: bool, // flag whether the checksum has changed since the frontend last updated
     pub endianness: Endianness,
     pub loaded: bool, // this is included in the case that the frontend was loaded after the elf loader tried to emit an event
     pub memory_array: Vec<Byte>, // unsigned Byte array
@@ -580,6 +588,7 @@ impl Memory for RAM {
     fn new(size: usize, endianness: Endianness) -> Self {
         Self {
             checksum: 0,
+            update_frontend_checksum: false,
             endianness,
             loaded: false,
             memory_array: vec![0; size],
@@ -605,7 +614,16 @@ impl Memory for RAM {
     }
 
     fn set_checksum(&mut self, checksum: Checksum) {
+        self.set_update_frontend_checksum(true);
         self.checksum = checksum
+    }
+
+    fn get_update_frontend_checksum(&self) -> bool {
+        self.update_frontend_checksum
+    }
+
+    fn set_update_frontend_checksum(&mut self, state: bool) {
+        self.update_frontend_checksum = state;
     }
 }
 
@@ -613,6 +631,7 @@ impl Default for RAM {
     fn default() -> Self {
         RAM {
             checksum: 0,
+            update_frontend_checksum: false,
             endianness: Endianness::Big,
             loaded: false,
             memory_array: vec![0; DEFAULT_MEMORY_SIZE],
