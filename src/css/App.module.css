@@ -3,6 +3,7 @@
   min-height: 100vh;
   color: white;
   @apply bg-gray-900;
+  @apply h-5/6;
 }
 
 .link {

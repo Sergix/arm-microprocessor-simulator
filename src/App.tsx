@@ -89,16 +89,16 @@ const App: Component = () => {
 			</header>
 			<Show when={loaded()}>
 				<Toolbar/>
-				<div class="flex flex-row p-1">
-					<div class="flex flex-col p-1 overflow-hidden">
+				<div class="flex flex-row pl-1 pr-2 h-5/6">
+					<div class="flex flex-col p-1 flex-1 overflow-x-hidden">
 						<MemoryPanel/>
 						<DisassemblyPanel/>
 					</div>
-					<div class="flex flex-col p-1 overflow-hidden">
+					<div class="flex flex-col p-1 flex-0 overflow-x-hidden">
 						<RegisterPanel/>
 						<StackPanel/>
 					</div>
-					<div class="flex flex-col p-1 overflow-hidden">
+					<div class="flex flex-col p-1 flex-1 overflow-x-hidden">
 						<FlagsPanel />
 						<TerminalPanel/>
 					</div>

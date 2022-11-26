@@ -168,8 +168,8 @@ When one of the NZCV flags is active, the flag's icon will be green.
 ## Bug Report
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
-- Panels are not resized when the window's height changes, only the width
 - Loading some IO-based programs after running an IO-based program can cause the program to hang due to thread locks
+- Some IO-based programs (such as quicksort) will hang when running in "exec" mode with trace logs
 
 ## [Project Journal](CHANGELOG.md)
 

@@ -357,8 +357,6 @@ impl fmt::Display for Instruction {
                 // ex: ldralh rd, [rn, #n]!
                 //     {}{}   {}, [{}, {}]{}
 
-                // TODO: LSH code A5.3
-
                 fmt.write_str(
                     format!(
                         "{}{}h {}, [{}, {}]{}",
@@ -375,8 +373,6 @@ impl fmt::Display for Instruction {
                 // ex: ldralh rd, [rn], #n
                 //     {}{}   {}, [{}], {}
 
-                // TODO: LSH code A5.3
-
                 fmt.write_str(
                     format!(
                         "{}{}h {}, [{}], {}",
@@ -391,8 +387,6 @@ impl fmt::Display for Instruction {
             InstrType::LDRHSTRHRegPost => {
                 // ex: ldralh rd, [rn], rm
                 //     {}{}   {}, [{}], {}
-
-                // TODO: LSH code A5.3
 
                 fmt.write_str(
                     format!(
@@ -409,8 +403,6 @@ impl fmt::Display for Instruction {
                 // ex: ldralh rd, [rn, rm]!
                 //     {}{}   {}, [{}, {}]{}
 
-                // TODO: LSH code A5.3
-                
                 fmt.write_str(
                     format!(
                         "{}{}h {}, [{}, {}]{}",

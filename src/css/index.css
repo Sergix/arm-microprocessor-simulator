@@ -11,6 +11,11 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   @apply bg-gray-900;
   @apply scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
 }
 
 code {
