@@ -13,7 +13,7 @@
     - If you implemented instructions or addressing modes that were not required by the specifications, highlight those here
     - In order to receive extra credit for them, you must provide a small extras.s test file that tests your extra addressing modes / instructions, along with a trace log with relevant portions highlighted, and a detailed discussion of how the log demonstrates that your instructions are correctly executed
   - [-] User Guide: A comprehensive guide to the features of your simulator, including command line arguments as well as GUI capabilities. Discuss how to create exe's that can be used with your simulator. Include screen shots.
-  - [-] Software Architecture
+  - [x] Software Architecture
     - UML diagram showing the key classes in your model and the relationships between them
     - describe the significant classes and their relationships
     - mention any use of threads/timers
@@ -21,11 +21,11 @@
     - third-party libraries
     - design patterns
     - terminal I/O
-  - [-] Bug Report
+  - [x] Bug Report
     - trace file comparisons for sim1 and sim2
     - For test files for which there is no official trace, indicate whether the simulator produced the expected output, and if not, why not
     - list significant omissions as well as known issues
-  - [ ] Appendices
+  - [x] Appendices
     - Project journal
     - git log
     - subtotal hours for each phase

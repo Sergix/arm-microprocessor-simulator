@@ -281,6 +281,8 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 
 #### Progress [14hrs] (yes, actually)
 
+**Checkpoint Reached: Checkpoint 3: Execution I**
+
 - Disassembly for all the previous instructions listed and their categories
 - Trace logs
 - `--exec` option
@@ -299,3 +301,87 @@ If a project checkpoint was completed, a note (**Checkpoint Reached: [Details]**
 - [Rust std::fs::File](https://doc.rust-lang.org/std/fs/struct.File.html)
 - [Rust bit shifting operators](https://doc.rust-lang.org/reference/expressions/operator-expr.html#arithmetic-and-logical-binary-operators)
 - [Barrel shifters](https://www.davespace.co.uk/arm/introduction-to-arm/barrel-shifter.html)
+
+## Week 10
+
+No progress.
+
+## Week 11
+
+### 11-7-22
+
+#### Progress [2.25hrs]
+
+- Outline requirements for Phase 4 to easily track progress
+- Add tests for LDRB/STRB
+- Move disassembly logic to separate file
+- Add frontend notification for when memory is chunking
+
+## Week 12
+
+No progress.
+
+## Week 13
+
+### 11-22-22
+
+#### Progress [9hrs]
+
+- Add terminal display panel with backend events
+- Implement conditional code checks for instructions
+- Implement S variants for all data instructions
+- Fix conditional checks for conditional data instructions
+- Map hardware addresses in instructions
+- Add `BL`, `BX`, `MRS`, and `MSR` instructions
+- Add all shift types
+- Fix barrel shifter values and offsets
+- Add banked register switching with SPSR and mode registers
+
+### 11-23-22
+
+#### Progress [5hrs]
+
+- Fix instruction decoding issues for `BX`, `MRS`, `MSR`
+- Add SWI handler in CPU step
+- Fix CPU instruction execute result handling for halts
+- Optimize frontend updates by only rechunking memory when needed
+- Fix comparison instruction bugs with incorrect calculations
+
+### 11-24-22
+
+#### Progress [6hrs]
+
+- Add banked register switching
+- Add SWI prompt input and output handlers
+- Fix register banking issues with having too many "implicit" state changes
+
+#### Sources
+
+- [ARM Registers](https://developer.arm.com/documentation/dui0473/m/overview-of-the-arm-architecture/arm-registers)
+
+### 11-25-22
+
+#### Progress [8hrs]
+
+- Refactor CPU step and run functions
+- Refactor command-line options parsing
+- Double-check all lock calls
+- Fix release binary thread locking
+- Add IRQ hardware device input handling
+- Add and fix LDRH/STRH LSH codes not being interpreted correctly
+- Test LDRH/STRH with custom C program
+- Fix window height resizing so that window is now responsive to height changes
+
+#### Sources
+
+- [LDRH/STRH C example](https://stackoverflow.com/questions/50779537/difference-between-ldrsh-ldrh-strh-and-strsh)
+- [Debug assertions in Rust](https://stackoverflow.com/questions/39204908/how-to-check-release-debug-builds-using-cfg-in-rust)
+- [JavaScript KeyboardEvent](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent)
+
+### 11-26-22
+
+**Checkpoint Reached: Checkpoint 4: Execution II**
+
+#### Progress [4.75hrs]
+
+- Update all documentation and README

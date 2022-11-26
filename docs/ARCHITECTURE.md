@@ -34,7 +34,3 @@ Since this program only supports 3 modes (SYS, SVC, IRQ) with 6 extra banked reg
 
 ## Terminal I/O
 
-
-## Frontend UI Component Updates
-
-Because the backend cannot guaruantee that once it attempts to send the original state update to the frontend that the frontend components have been mounted, every component individually requests a state update once it mounts.

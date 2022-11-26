@@ -25,7 +25,6 @@ state = "0.5"
 # https://github.com/tauri-apps/tauri/discussions/3059
 tauri = { version = "1.2.1", features = ["api-all", "cli", "devtools"] }
 tokio = { version = "1", features = ["full"] }
-ts-rs = "6.1"
 
 [dependencies.tauri-plugin-log]
 git = "https://github.com/tauri-apps/tauri-plugin-log"

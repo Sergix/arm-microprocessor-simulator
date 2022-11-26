@@ -2,54 +2,58 @@
 
 **Name:** Peyton McGinnis  
 **Course:** CpS 310  
-**Submission date:** 29 October 2022  
-**Hours spent this phase:** 32.25
+**Submission date:** 26 November 2022  
+**Hours spent this phase:** 35
 
 ## Overview
 
 ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This application can load an ELF binary, disassemble the binary, and show the flags, memory, and stack as the application runs with inline run/step debugging.
 
+This report details all information pertaining the project's features, how to use the program, and how to compile and configure the program. This report also includes instructions for compiling your own program to run on the simulator.
+
 ## Features
 
-### Phase 1 nd GUI
-
-- `--mem`, `--exec`, and `<elf-file>` command line options are supported and validated
-- Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
-- Scrollable memory grid
-  - Navigates to any given address and properly formats the table
-- ELF file loader in GUI
+#### C-Level
+- ELF loader displays correct checksums for valid ELF files
 - Simulated RAM with checksums
-- Unit tests
-  - All `lib::memory` logic
-  - A few for disassembly, decoding, and `instruction` building
-- Disassembly table (with accurate assembly)
+- `--mem`, `--exec`, and `<elf-file>` command line options are supported and validated
 - Register viewer (r0..15)
 - Flags display
-
-### Phase 3
-
+- Stacks panel
 - Internal CPU simulator
-- Resizable window
-- Add and toggle breakpoints in the disassembly window
-- All hotkeys implemented
-- Multithreaded debugger controls -- Run, Step, Stop, Reset
-- All required instructions implemented
-- Optional trace logs output to `trace.log` in local directory
-  - Correct trace for C- and B-level tests
 - Automatic execution through `--exec` option
 
-### Phase 4
+#### B-Level
+- Scrollable memory grid
+  - Navigates to any given address and properly formats the table
+- Comprehensive unit tests
+  - All `lib::memory` logic
+  - A few for disassembly, decoding, and `instruction` building
+- Multithreaded debugger controls -- Run, Step, Stop, Reset
+- All hotkeys implemented
+- Optional trace logs output to `trace.log` in local directory
 
-- Banked register swapping and CPU modes for SYS, SVC, and IRQ modes
-- Trace logging for all system modes
-- SWI handlers (putchar, halt, readline)
-- Memory-mapped keyboard and display device handling
+#### A-Level
+- Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
+- Polished GUI
+- Resizable window
+- Breakpoints
+  - Add and toggle breakpoints in the disassembly window
+- Quality draft and detailed design
 - All required instructions implemented
-- Terminal window interaction with real-time output and interactive itnerrupt prompts
+- Disassembly table with accurate assembly for all instructions
+- Correct trace logs for all tests, with trace logging for all system modes
+- Interrupt processing
+- All processor modes: `SYS`, `SVC`, `IRQ`
+- Banked register swapping and CPU modes for SYS, SVC, and IRQ modes
+- Memory-mapped keyboard and display device I/O handling
+- Terminal window interaction with real-time output and interactive interrupt prompts
+  - SWI instructions
+  - Memory-mapped keyboard and display devices
 - Processor mode notes in toolbar
-- Active hotkey notification in toolbar
+- SWI I/O handlers (putchar, halt, readline) with processor mode switching
 
-### Not required, but implemented features
+#### Extra Credit
 
 **LDRH/STRH**  
 *Tests: `\tests\pmcgi795_halfword_no_io.c`, `\tests\pmcgi795_halfword_no_io.lst`*  
@@ -60,19 +64,23 @@ LDRH and STRH modes are implemented in the program. The trace log shows the foll
 `1048:	e1d220b2 	ldrh	r2, [r2, #2]`  
 `000019 00001048 1FFFDB3B 0000 SYS 0=00000000 1=00000000 2=00000001 3=00000006 4=00000000 5=00000000 6=00000000 7=00000000 8=00000000 9=00000000 10=00000000 11=00006FFC 12=00000000 13=00006FF0 14=00000000`
 
-### Not implemented features
+**Data Move S-versions**  
+
+
+#### Not implemented features
 
 - LDRH/STRH doublewords
 - LDRH/STRH LSH code disassembly
 - Log suppression for reset handler
+- Logging configuration
 
 ## Prerequisites
 
-### OS Platforms
+#### OS Platforms
 
 Windows 10/11, macOS, Debian, Arch, Fedora, openSUSE
 
-### Software
+#### Software
 
 - [yarn 1.22.^](https://classic.yarnpkg.com/en/docs/install)
 - [Rust + cargo](https://www.rust-lang.org/)
@@ -91,7 +99,7 @@ Windows 10/11, macOS, Debian, Arch, Fedora, openSUSE
 
 ## Build and Tests
 
-### Building
+#### Building
 
 1. Install the necessary software noted above for your platform.
 2. `git clone https://github.com/bjucps310/cps310-simulator-Sergix`
@@ -101,11 +109,11 @@ Windows 10/11, macOS, Debian, Arch, Fedora, openSUSE
 
 The release target binary is exported to `/src-tauri/target/release` along with the platform-specific installer package files. The debug target binary is similarly in `/src-tauri/target/release`.
 
-### Development
+#### Development
 
 To run the built-in development environment with hot module reloading (HMR), run `yarn tauri dev`.
 
-### Testing
+#### Testing
 
 To run the tests, run `cd lib` then `cargo test`.
 
@@ -137,7 +145,7 @@ The `--traceall` option enables trace logging for *all* system modes: `SYS`, `SV
 #### Debugging Controls
 
 Once a binary is loaded, you can use the **Run** button in the toolbar to begin executing the application. The binary will run on a separate thread and continue until:
-1. A HLT (0x0) instruction is reached
+1. A HLT (0x0) instruction or HLT SWI instruction is reached
 2. The **Stop** button is pressed
 3. A breakpoint is hit
 
@@ -152,7 +160,7 @@ Press **Reset** to reset the display, memory, and registers, but keep all breakp
 The **Trace** function is used to output a log of all CPU steps to `./trace.log` to inspect all register information after the result of each instruction cycle. The format for each entry is:  
 `step_number program_counter checksum nzcv mode r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 `
 
-The **Trace** button in the UI will be *green* when trace logging is active for the currently loaded executable.
+The **Trace** button in the UI will be *green* when trace logging is active for the currently loaded executable. The trace log will appear in the directory from which the application was executed.
 
 #### Hotkeys
 
@@ -172,45 +180,198 @@ In the memory panel, you can enter a hex address in the *Address* input and pres
 
 When one of the NZCV flags is active, the flag's icon will be green.
 
+#### Registers Panel
+
+This panel displays all the registers from r0...r15 for the currently loaded register bank.
+
+#### Stack Panel
+
+This panel displays memory locations close to the stack pointer: 3 above and 3 below. The stack pointer address is highlighted in the table.
+
+#### Terminal Panel
+
+The terminal panel can be used by programs that execute interrupt instructions to read and write to an output device. The following functionality is enabled for programs:
+1. SWI 0x0: output the character to the terminal
+2. SWI 0x6a: prompt the user for a string input
+3. 0x100000: write calls to this address result in writing the character to the terminal
+4. 0x100001: read calls to this address result in reading the last-pressed character from the terminal
+
+#### Disassembly Panel
+
+This panel displays a table with instructions surrounding the currently executing instruction and each instruction's ARM assembly representation.
+
+By clicking the icon in the *BP* (BreakPoint) column, you can also toggle a breakpoint for that specific address.
+
+#### Writing Programs
+
+It is best and easiest to use C or assembly to write compatible programs.
+
+To compile a progam that is compatible with the simulator, you will need the following tools (tool are only for Windows). Copy each executable from the locations in each package below into the folder that has your programs.
+
+1. [gcc-arm-win32-toolset](https://developer.arm.com/downloads/-/gnu-rm)
+	- \arm-none-eabi\bin\as.exe
+	- \bin\arm-none-eabi-gcc.exe
+	- \bin\arm-none-eabi-ld.exe
+	- \bin\arm-none-eabi-objdump.exe
+2. [WinLibs GCC from MingGW for Win32 (without LLVM/Clang/LLD/LLDB)](https://winlibs.com/)
+	- \mingw32\libexec\gcc\i686-w64-mingw32\cc1.exe
+
+In addition, save the linker script in Code Listing 1 at the end of this document into a file called `linker.ld`.
+
+Then, you will need to execute the following commands for your source file, for example `program.c`:
+```
+arm-none-eabi-gcc.exe -c program.c -o program.o -nostdlib -fno-builtin -nostartfiles -nodefaultlibs  -mcpu=arm7tdmi
+arm-none-eabi-ld -T linker.ld -n -e main -o program.exe program.o 
+```
+
+Then, you can load `program.exe` into the simulator.
+
 ## Instruction Implementation
 
-- `AND`, `EOR`, `SUB`, `RSB`, `ADD`, `SBC`, `RSC`, `ORR`, `MOV`, `BIC`, `MVN`
+- `AND`, `EOR`, `SUB`, `RSB`, `ADD`, `SBC`, `RSC`, `ORR`, `MOV`, `BIC`, `MVN`, `TEQ`, `TST`, `CMP`, `CMN`
   - register with immediate shift, register with register shift, immediate
-  - all barrel shifters (except RXX)
+  - all shift types (except RXX)
+  - all S variants
 - `LDR`, `STR`
   - pre-index, pre-index writeback, post-index
   - unsigned byte, word
   - shifted register offset, register offset, immediate offset
 - `LDRH`, `STRH`: 
-  - LSH shifts not implemented
+  - LSH shifts implemented (except doubleword)
   - pre-index, pre-index writeback, post-index
   - register offset, immediate offset 
-- `B`, `BL`
+- `B`, `BL`, `BX`
 - `LDM`, `STM`
   - with and without writeback
   - All LSM codes (increment after, decrement before, ...)
 - `MUL`
-- `SWI`
-  - sets CPU mode, jumps, and halts
+- `SWI` (all interrupt codes)
+- `MSR`
+  - register offset, immediate offset
+  - assumes privilaged mode in calculating bit masks
+- `MRS`
+- `NOP`
+
+## Software Architecture
+
+This application uses a combination of Rust with Tauri for the backend and the Tauri interface with SolidJS for the frontend.
+
+#### UML Diagram
+
+<embed src="/docs/DRAFT-diagram.drawio.pdf" width="500" height="375"></embed>
+
+#### Class Relationships
+
+The codebase is split into three main packages, `/lib`, `/src-tauri`, and `/src`:
+- `/lib` (cargo crate): logic that doesn't interact with the interface
+    This logic may interact with Tauri's application state, but does not interact with any UI logic
+- `/src-tauri` (npm package): Tauri commands, state, events, and other interface logic that sets up the frontend and responds to UI events
+- `/src` (cargo crate): frontend and UI, SolidJS, driven by Tauri server
+
+Execution begins in `/src-tauri/src/main.rs`, where Tauri sets up the web view backend. The frontend interacts with the backend by invoking events.
+
+The primary backend classes are the following:
+- `Memory`: all abstract methods and implementations for reading and writing data
+  - `RAM`: primary singleton for memory
+  - `Registers`: singleton for all program registers
+- `CPU`: all fetch, decode, execute steps that uses `Instruction` classes for processing
+- `CPUThreadWatcher`: watches the CPU thread state to manage events (IRQ interrupts, start/stop, etc.) from the frontend as the CPU is running
+- `Instruction`: CPU stores each decoded Word from the program as an `Instruction` class that also contains a reference to its appropriate execute method
+- `Options`: program command-line option parsing and storage
+- `Trace`: singleton tracefile instance called by CPU for saving trace logs
+
+#### Threading
+
+The application uses a somewhat-complex threading model because of Rust's strict enforcement of variable lifetimes. Global state singletons (`/lib/src/state.rs`) are managed by Tauri and can be accessed by any function in the application with access to the global `app_handle` object. This `app_handle` is passed around to functions and functions can access the state mutexes through this instance, but each function has to ensure that its locks are freed as soon as possible.
+
+Because the `CPU` class will likely be continuously running as the program executes, the `CPUThreadWatcher` class (as mentioned before) maintains the CPU's thread state while the CPU runs and intercepts events from the frontend.
+
+#### Model-View Separation
+
+*[Tauri Event Documentation](https://tauri.app/v1/guides/features/events/)*  
+
+Both the Rust Tauri backend and the frontend run on separate threads by nature. Events are sent to the frontend via `emit` calls on the "app handler", and events are sent to the backend via `invoke` calls. The backend listens to events via commands, and the frontend listens to events via `listen`ers.
+
+#### Third-Party Libraries
+
+- [Tauri](https://tauri.app/): primary application and webview driver
+- [normpath](https://crates.io/crates/normpath): normalize user-specified executable paths
+- [object](https://crates.io/crates/object): efficiently read ELF binaries
+- [bitmatch](https://crates.io/crates/bitmatch): pattern matching for bit sequences used in decoding instructions
+- [num](https://crates.io/crates/num): map enums to values
+
+#### Design Patterns
+
+Most of the signals sent throughout the program use some form of flagging technique. No special observer or event patterns are defined since Tauri intrinsically provides a complete event-based interface.
+
+#### Terminal I/O
+
+Terminal I/O is accomplished differently for how the data is either read or written:
+1. SWI `putchar` (`0x0`)
+   - set all the conditions defined by the ARM Manual (A2.6.4)
+   - read `r0`
+   - emit update event to frontend, frontend captures and adds character to terminal
+2. SWI `readline` (`0x6a`)
+   - set all the conditions defined by the ARM Manual (A2.6.4)
+   - get arguments from `r1` and `r2`
+   - emit a prompt event to frontend, frontend opens prompt input
+   - loop
+   - once user enters prompt, send a signal to the backend `CPUThreadWatcher`
+   - exit loop
+   - store input in memory
+3. Memory-mapped display device (`0x100000`)
+   - after decode and before execute, check if the instruction intends to write to the address
+   - if so, emit update event to frontend, frontend captures and adds character to terminal
+   - continue executing instruction as normal
+   - instruction execute method ignores write address
+4. Memory-mapped keyboard device (`0x100001`)
+   - after decode and before execute, inject the user's last-pressed key into the instruction class
+   - execute the instruction
+   - if the instruction intends to read from the address, the instruction replaces the value with the last-pressed key value
 
 ## Bug Report
 
-### Sim1 Tracefile Comparisons
+#### Sim1 Tracefile Comparisons
 
-- The tests with provided trace logs are identical.
-- 
+- `btest.exe`: trace logs are identical
+- `ctest.exe`: trace logs are identical
+- `ldmstm.exe`: works as expected
 
-### Sim2 Tracefile Comparisons
+#### Sim2 Tracefile Comparisons
 
-- All non-IO tests with provided trace logs are identical.
-- All IO tests work as expected.
+- `branch.exe`: trace logs are identical
+- `cmp.exe`: trace logs are identical
+- `locals_no_io.exe`: trace logs are identical
+- `mersenne_no_io.exe`: trace logs are identical
+- `quicksort_no_io.exe`: trace logs are identical
+- `countdown.exe`: works as expected
+- `iodemo.exe`: works as expected
+- `mersenne.exe`: works as expected
+- `quicksort.exe`: works as expected
+- `simpleiodemo.exe`: works as expected
+- `syscalldemo.exe`: works as expected
 
-### General
+#### General
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
 - Although rarely, the program may hang when running a program using the `--traceall` and `--exec` options.
 
-## [Project Journal](CHANGELOG.md)
+## Appendices
+
+#### [Project Journal](CHANGELOG.md)
+
+#### [Git log](https://github.com/bjucps310/cps310-simulator-Sergix/commits/master)
+
+#### Project Hours
+
+**Subtotal hours for each phase**
+
+1. Phase 1: 31.25
+2. Phase 2: 22.15
+3. Phase 3: 33.25
+4. Phase 4: 35h
+
+**Total number of hours for the entire project**: 120.9h
 
 ## Academic Integrity Statement
 
@@ -219,3 +380,30 @@ By affixing my signature below, I certify that the accompanying work represents 
 *Peyton McGinnis*
 
 | Date | Name | Nature of Help | Time Spent | 
+
+
+## Code Listings
+
+#### Code Listing 1
+
+```
+SECTIONS
+{
+    . = 0x001000;
+
+    .text ALIGN (0x04) :
+    {
+        *(.text)
+        *(.rodata)
+        *(.data)
+    } 
+
+    .bss :
+    {
+        sbss = .;
+        *(COMMON)
+        *(.bss)
+        ebss = .;
+    }
+}
+```
