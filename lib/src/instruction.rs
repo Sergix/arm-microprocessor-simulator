@@ -707,7 +707,7 @@ pub fn instr_ldrhstrh_imm_pre(condition: Word, add_sub: Word, writeback: Word, l
     instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
-    instr.set_lsh(lsh);
+    instr.set_lsh((ldr_str << 2) | lsh);
     instr.set_imm(((high_bits as Byte) << 4) | (low_bits as Byte));
     instr.set_execute(execute::instr_ldrhstrh_imm_pre);
 
@@ -723,7 +723,7 @@ pub fn instr_ldrhstrh_imm_post(condition: Word, add_sub: Word, writeback: Word, 
     instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
-    instr.set_lsh(lsh);
+    instr.set_lsh((ldr_str << 2) | lsh);
     instr.set_imm(((high_bits as Byte) << 4) | (low_bits as Byte));
     instr.set_execute(execute::instr_ldrhstrh_imm_post);
 
@@ -739,7 +739,7 @@ pub fn instr_ldrhstrh_reg_pre(condition: Word, add_sub: Word, writeback: Word, l
     instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
-    instr.set_lsh(lsh);
+    instr.set_lsh((ldr_str << 2) | lsh);
     instr.set_rm(rm);
     instr.set_execute(execute::instr_ldrhstrh_reg_pre);
 
@@ -755,7 +755,7 @@ pub fn instr_ldrhstrh_reg_post(condition: Word, add_sub: Word, writeback: Word, 
     instr.set_ldr_str(util::word_lsb_to_bool(ldr_str));
     instr.set_rn(rn);
     instr.set_rd(rd);
-    instr.set_lsh(lsh);
+    instr.set_lsh((ldr_str << 2) | lsh);
     instr.set_rm(rm);
     instr.set_execute(execute::instr_ldrhstrh_reg_post);
 
