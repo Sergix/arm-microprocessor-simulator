@@ -22,13 +22,15 @@ pub async fn cmd_get_elf(memory_state: RAMState<'_>, options_state: OptionsState
     
     let memory_lock = memory_state.lock().await;
     let options_lock = options_state.lock().await;
+
+    let opts_file = options_lock.elf_file.clone().unwrap_or("".to_string());
     
     if memory_lock.loaded {
         trace!("cmd_get_memory: ELF has already been loaded. passing to frontend...");
         return Ok(ELFPayload {
             loaded: true,
             error: "".into(),
-            filename: String::clone(&options_lock.elf_file)
+            filename: opts_file.clone()
         })
     } else {
         trace!("cmd_get_memory: ELF has not been loaded.");
@@ -120,7 +122,7 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
     {
         // start the executable if the --exec option is provided, then exit
         let options_lock = options_state.lock().await;
-        if options_lock.exec && !options_lock.elf_file.is_empty() {
+        if options_lock.exec && options_lock.elf_file.is_some() {
             trace!("load_elf: running CPU...");
             (&mut trace_state.lock().await).open_trace_file();
             (cpu_state.lock().await).run(app_handle.clone()).await;

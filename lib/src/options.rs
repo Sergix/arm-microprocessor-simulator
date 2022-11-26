@@ -1,10 +1,9 @@
-use crate::memory;
 use tauri::{api::cli::Matches};
 use log::{trace, error};
 
 pub struct Options {
-    pub memory_size: usize,
-    pub elf_file: String,
+    pub memory_size: Option<usize>,
+    pub elf_file: Option<String>,
     pub exec: bool,
     pub traceall: bool
 }
@@ -14,102 +13,61 @@ impl Options {
         // matches { args, subcommand }
         // args HashMap<String, ArgData>, ArgData { value, occurances }
         
-        // TODO: refactor
-
         match matches.args.get("help") {
             Some(arg) => {
                 println!("{}", arg.value.to_string());
                 std::process::exit(0)
             }
-            None => {
-                
-            }
+            _ => { }
         }
-        
-        self.memory_size = match matches.args.get("mem") {
-            Some(arg) => {
-                // automatically passes a falsy value if option not present, so skip
-                if arg.occurrences == 0 {
-                    memory::DEFAULT_MEMORY_SIZE
-                } else {
-                    let arg_value_normalized = String::from(arg.value.to_string().trim_matches(&['"', '\''] as &[_]));
 
-                    match arg_value_normalized.parse::<usize>() {
-                        Ok(u) => {
-                            if u > 1024000 {
-                                error!("parse: --mem must be <= 1MB (1024000b)");
-                                std::process::exit(1)
-                            }
+        for (name, arg) in matches.args {
+            // skip empty arguments
+            if arg.occurrences == 0 {
+                continue
+            }
+            
+            if name == "mem" {
+                trace!("parse: mem {}", arg.value.to_string());
+                let arg_value_normalized = String::from(arg.value.to_string().trim_matches(&['"', '\''] as &[_]));
 
-                            trace!("parse: mem {}", u);
-                            u as usize
-                        }
-                        Err(_) => {
-                            error!("parse: --mem option value incompatible {}", arg.value);
+                self.memory_size = Some(match arg_value_normalized.parse::<usize>() {
+                    Ok(u) => {
+                        if u > 1024000 {
+                            error!("parse: --mem must be <= 1MB (1024000b)");
                             std::process::exit(1)
                         }
+
+                        trace!("parse: mem {}", u);
+                        u as usize
                     }
-                }
-            }
-            None => {
-                memory::DEFAULT_MEMORY_SIZE
-            }
-        };
+                    Err(_) => {
+                        panic!("parse: --mem option value incompatible {}", arg.value);
+                    }
+                });
+            } else if name == "elf-file" {
+                trace!("parse: elf_file {}", arg.value.to_string());
+                
+                // remove chars possibly passed by shell
+                // https://stackoverflow.com/a/49856591
+                self.elf_file = Some(String::from(arg.value.to_string().trim_matches(&['"', '\'', ' '] as &[_])));
+            } else if name == "exec" {
+                trace!("parse: exec {}", arg.value.to_string());
 
-        self.elf_file = String::from(match matches.args.get("elf-file") {
-            Some(arg) => {
-                // skip over non-string values in case a falsy value is passed
-                if arg.occurrences == 0 {
-                    String::new()
-                } else {
-                    trace!("parse: elf_file {}", arg.value.to_string());
-
-                    // remove chars possibly passed by shell
-                    // https://stackoverflow.com/a/49856591
-                    String::from(arg.value.to_string().trim_matches(&['"', '\'', ' '] as &[_]))
-                }
+                self.exec = true;
+            } else if name == "traceall" {
+                trace!("parse: traceall enabled");
+                self.traceall = true;
             }
-            None => {
-                error!("parse: <elf_file> missing");
-                std::process::exit(1)
-            }
-        });
-
-        self.exec = match matches.args.get("exec") {
-            Some(arg) => {
-                if arg.occurrences == 0 {
-                    false
-                } else {
-                    trace!("parse: exec with trace enabled");
-                    true
-                }
-            }
-            None => {
-                false
-            }
-        };
-
-        self.traceall = match matches.args.get("traceall") {
-            Some(arg) => {
-                if arg.occurrences == 0 {
-                    false
-                } else {
-                    trace!("parse: traceall enabled");
-                    true
-                }
-            }
-            None => {
-                false
-            }
-        };
+        }
     }
 }
 
 impl Default for Options {
     fn default() -> Self {
         Options {
-            memory_size: memory::DEFAULT_MEMORY_SIZE,
-            elf_file: String::new(),
+            memory_size: None,
+            elf_file: None,
             exec: false,
             traceall: false
         }

@@ -65,44 +65,47 @@ fn main() {
             }
             
             let handle = app.app_handle();
-            let elf_file;
+            let opts_elf_file;
             
             // drop locks immediately
             {
                 let opts: OptionsState = handle.state();
-                let opts_lock = opts.blocking_lock();
-
                 let cpu: CPUState = handle.state();
-                let mut cpu_lock = cpu.blocking_lock();
-
                 let memory: RAMState = handle.state();
-                let mut memory_lock = memory.blocking_lock();
-
                 let trace: TraceFileState = handle.state();
+                
+                let opts_lock = opts.blocking_lock();
+                let mut cpu_lock = cpu.blocking_lock();
+                let mut memory_lock = memory.blocking_lock();
                 let mut trace_lock = trace.blocking_lock();
+                
+                // copy here to pass to loader after locks are freed
+                opts_elf_file = opts_lock.elf_file.clone().unwrap_or("".to_string());
 
                 // enable CPU step tracing if --exec is provided and an elf-file is provided
-                if opts_lock.exec && !opts_lock.elf_file.is_empty() { cpu_lock.toggle_trace(); }
+                if opts_lock.exec && opts_lock.elf_file.is_some() { cpu_lock.toggle_trace(); }
 
                 // enable traceall if option enabled
                 if opts_lock.traceall { trace_lock.set_traceall(); }
                 
                 // create RAM using memsize
-                memory_lock.size = opts_lock.memory_size;
-                memory_lock.memory_array.resize(opts_lock.memory_size, 0);
+                let opts_memsize = match opts_lock.memory_size {
+                    Some(size) => size,
+                    None => memory::DEFAULT_MEMORY_SIZE,
+                };
+                memory_lock.size = opts_memsize;
+                memory_lock.memory_array.resize(opts_memsize, 0);
                 
                 // debug information
-                trace!("OPTIONS: {}bytes, {}", opts_lock.memory_size, opts_lock.elf_file);
-                trace!("RAM Details: {}bytes, {}actual", memory_lock.size, memory_lock.memory_array.len());
+                trace!("OPTIONS: {}bytes, {}", opts_memsize, opts_elf_file);
+                trace!("RAM Details: {}bytes, {}actual", opts_memsize, memory_lock.memory_array.len());
 
-                // copy here to pass to loader after locks are freed
-                elf_file = String::clone(&opts_lock.elf_file);
             }
             
             // if a cmd-line argument file was passed
-            if !elf_file.is_empty() {
+            if !opts_elf_file.is_empty() {
                 spawn(async move {
-                     loader_cmd::load_elf(String::clone(&elf_file), handle).await;
+                     loader_cmd::load_elf(opts_elf_file.clone(), handle).await;
                 });
             }
             
