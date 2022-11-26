@@ -124,7 +124,9 @@ pub async fn load_elf(filename: String, app_handle: AppHandle) {
         let options_lock = options_state.lock().await;
         if options_lock.exec && options_lock.elf_file.is_some() {
             trace!("load_elf: running CPU...");
-            (&mut trace_state.lock().await).open_trace_file();
+            {
+                (&mut trace_state.lock().await).open_trace_file();
+            }
             (cpu_state.lock().await).run(app_handle.clone()).await;
             (&mut trace_state.lock().await).close_trace_file();
             

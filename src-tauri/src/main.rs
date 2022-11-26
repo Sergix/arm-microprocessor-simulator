@@ -19,7 +19,6 @@ mod terminal_cmd;
 mod stack_cmd;
 
 use lib::memory;
-use lib::memory::Byte;
 use lib::options;
 use lib::cpu;
 use lib::state::CPUState;
@@ -34,7 +33,13 @@ use tauri_plugin_log::{fern::colors::ColoredLevelConfig, LogTarget, LoggerBuilde
 fn main() {
     // logging interface setup
     // logs to stdout and WebView console simultaneously when called from frontend
-    let targets = [LogTarget::LogDir, LogTarget::Stdout, LogTarget::Webview];
+    #[cfg(debug_assertions)]
+    let log_targets = [LogTarget::LogDir, LogTarget::Stdout, LogTarget::Webview];
+
+    // disable other logs to fix thread errors and speed up the runtime in release mode
+    #[cfg(not(debug_assertions))]
+    let log_targets = [LogTarget::LogDir];
+    
     let colors = ColoredLevelConfig::default();
 
     let context = tauri::generate_context!();
@@ -136,27 +141,9 @@ fn main() {
         .plugin(
             LoggerBuilder::new()
               .with_colors(colors)
-              .targets(targets)
+              .targets(log_targets)
               .build(),
           )
-        .register_uri_scheme_protocol("ram", |app_handle, _req| {
-            let ram_state: RAMState = app_handle.state();
-
-            let ram_buf: Vec<Byte>;
-            // release lock immediately
-            { 
-                ram_buf = ram_state.blocking_lock().memory_array.clone();
-            }
-            
-            // IPC socket for updating RAM when frontend requests
-            // from example: https://github.com/JonasKruckenberg/pisano/blob/1fd0e722f1df70874aa0268690213fa7b37f5e66/src-tauri/src/main.rs
-            tauri::http::ResponseBuilder::new()
-                .header("Origin", "*")
-                .mimetype("application/octet-stream")
-                .header("Content-Length", ram_buf.len())
-                .status(200)
-                .body(ram_buf)
-        })
         .run(context)
         .expect("error while running tauri application");
 

@@ -40,12 +40,13 @@ const App: Component = () => {
 		log.trace("SolidJS[App]: invalid ELF, clearing UI")
 		alert("Invalid ELF file.")
 		setLoaded(false)
+		setFilename("")
 	})
 	
 	onMount(async () => {
 		// check if a binary has been loaded by command-line args
 		try {
-			const payload: IELFPayload = await invoke('cmd_get_memory')
+			const payload: IELFPayload = await invoke('cmd_get_elf')
 
 			setLoaded(payload.loaded)
 			setFilename(payload.filename)
@@ -87,7 +88,7 @@ const App: Component = () => {
 				</button>
 				<p class="font-mono text-left text-sm">{ loaded() ? filename() : "None." }</p>
 			</header>
-			<Show when={loaded()}>
+			{/* <Show when={loaded()}> */}
 				<Toolbar/>
 				<div class="flex flex-row pl-1 pr-2 h-5/6">
 					<div class="flex flex-col p-1 flex-1 overflow-x-hidden">
@@ -103,7 +104,7 @@ const App: Component = () => {
 						<TerminalPanel/>
 					</div>
 				</div>
-			</Show>
+			{/* </Show> */}
 		</div>
 		);
 	};

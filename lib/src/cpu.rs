@@ -206,8 +206,23 @@ impl CPU {
         self.breakpoints.contains(&address)
     }
 
-    fn putchar(&self, registers_lock: &mut MutexGuard<'_, Registers>, app_handle: AppHandle) {
-        let arg_char = registers_lock.get_reg_register(Register::r0);
+    fn putchar(&self, arg_char: Word, app_handle: AppHandle) {
+        // originally, this was put here because I thought that the Rust backend
+        //  was sending events too quickly to the frontend and causing the main thread
+        //  to stall. I probably spent around 4 1/2 hours debugging why all the threads 
+        //  were locking up, because I was sure that it wasn't my fault and that I had carefully
+        //  managed all the thread locks. after doing some intensive investigation, I settled on this
+        //  since it seemed to work, although definitely not ideal. Eventually, though,
+        //  I discovered that the root cause of the issue was that all the logs being sent
+        //  through the IPC mechanism to Edge's frontend was beginning to clog the entire thread.
+        //  the bug never appeared in debug mode since the output to the stdout console delayed
+        //  the thread enough so that only a few logs would be sent to Edge. surpisingly,
+        //  once i disabled the log streaming functionality for release mode, everything suddenly *worked*.
+        //
+        //  so this is left here, as a memorial.
+        //
+        // thread::sleep(time::Duration::from_millis(5));
+
         app_handle.emit_all("terminal_append", TerminalPutcharPayload {
             char: char::from_u32(arg_char).unwrap_or('\0')
         }).unwrap();
@@ -265,7 +280,6 @@ impl CPU {
             cpu_thread_state.lock().await.set_running(true);
         }
         
-        trace!("run: stepping into cycle");
         // fetch-decode-execute
         loop {
             // stop when thread flag is updated
@@ -274,6 +288,7 @@ impl CPU {
                 if !cpu_thread_state.lock().await.is_running() { break }
             }
 
+            trace!("run: stepping...");
             if self.step(app_handle.clone()).await == InstrExecuteCondition::HLT {
                 // stop when HLT instruction or other exception
                 trace!("run: hit HLT or exception");
@@ -341,11 +356,10 @@ impl CPU {
         // rn = DISPLAY_ADDR
         // rd = value to write
         if util::is_write_instr(instr) && instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
-            let arg_char = char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0');
+            let arg_char = registers_lock.get_reg_register(instr.get_rd().unwrap());
             trace!("step: mapping hardware display event, char = 0x{:x}", arg_char as Byte);
-            app_handle.emit_all("terminal_append", TerminalPutcharPayload {
-                char: arg_char
-            }).unwrap();
+
+            self.putchar(arg_char, app_handle.clone());
         }
         // inject last character from keyboard event if loading from keyboard hardware address
         instr.set_last_char(last_char);
@@ -399,7 +413,10 @@ impl CPU {
                 registers_lock.set_pc(0x08+8); // add 8 bytes for PC
 
                 match instr.get_swi().unwrap() {
-                    0x0 => self.putchar(registers_lock, app_handle.clone()),
+                    0x0 => {
+                        let arg_char = registers_lock.get_reg_register(Register::r0);
+                        self.putchar(arg_char, app_handle.clone());
+                    },
                     0x6a => self.readline(ram_lock, registers_lock, app_handle.clone()).await,
                     _ => ()
                 }
@@ -421,7 +438,7 @@ impl CPU {
 
             let pc = registers_lock.get_pc();
             let cpsr = registers_lock.get_cpsr();
-            registers_lock.set_reg_register(Register::r14_irq, pc);
+            registers_lock.set_reg_register(Register::r14_irq, pc - 4);
             registers_lock.set_spsr_irq(cpsr);
             registers_lock.set_cpsr_mode(Mode::IRQ);
             registers_lock.set_i_flag(true);  // disable interrupts

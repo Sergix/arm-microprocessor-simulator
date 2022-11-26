@@ -20,9 +20,8 @@ pub async fn cmd_terminal_prompt_input(prompt_input: String, cpu_thread_watcher_
     trace!("cmd_terminal_prompt_input: prompt completed, notifying CPU...");
     
     trace!("cmd_terminal_prompt_input: attempting to lock state...");
-    let cpu_thread_watcher_lock = &mut cpu_thread_watcher_state.lock().await;
+    (&mut cpu_thread_watcher_state.lock().await).set_prompt_input(prompt_input.clone());
     trace!("cmd_terminal_prompt_input: obtained state lock");
-    cpu_thread_watcher_lock.set_prompt_input(prompt_input.clone());
 
     Ok(())
 }

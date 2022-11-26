@@ -540,7 +540,6 @@ pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
 }
 
 pub fn instr_bx(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
-    // TODO: why + 4?
     let rm = registers_lock.get_reg_register(instr.get_rm().unwrap()) + 4;
 
     registers_lock.set_t_flag(util::word_lsb_to_bool(rm));
