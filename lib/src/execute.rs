@@ -1,7 +1,7 @@
 use log::trace;
 use tokio::sync::MutexGuard;
 
-use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR, SignedWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, InstrExecuteCondition::{NOP, HLT, SWI, self}}, util};
+use crate::{memory::{Word, Registers, RAM, Byte, Memory, Register, HalfWord, KEYBOARD_ADDR, DISPLAY_ADDR, SignedWord}, instruction::{Instruction, TInstruction}, cpu_enum::{DataOpcode, LDMCode, InstrExecuteCondition::{NOP, HLT, SWI, self}, LSH}, util};
 
 // this method matches all the data operations with their appropriate operation
 // the caller is expected to resolve the operand2 ahead of time; this function
@@ -245,7 +245,6 @@ fn ldr_str_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGu
     );
 }
 
-// TODO: match with LSH code
 fn ldrh_strh_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, offset: Word) {
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
     let rd = registers_lock.get_reg_register(instr.get_rd().unwrap());
@@ -257,12 +256,40 @@ fn ldrh_strh_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexG
     
     match instr.get_ldr_str().unwrap() {
         true  /* ldr */ => {
-            // TODO: add hardware address check
-            let data = ram_lock.read_half_word(address);
-            registers_lock.set_reg_register(instr.get_rd().unwrap(), data as Word);
+            let data: Word = match address {
+                // map to keyboard hardware event if needed
+                // cpu injects character into instruction
+                KEYBOARD_ADDR => instr.get_last_char().unwrap() as Word,
+                _ => {
+                    match instr.get_lsh().unwrap() {
+                        LSH::LdrUHalfWord => {
+                            ram_lock.read_half_word(address) as Word
+                        },
+                        LSH::LdrSByte => {
+                            (ram_lock.read_byte(address) as i8) as Word
+                        },
+                        LSH::LdrSHalfWord => {
+                            (ram_lock.read_half_word(address) as i16) as Word
+                        },
+                        _ => panic!("{}", instr.get_lsh().unwrap().to_string())
+                    }
+                }
+            };
+            registers_lock.set_reg_register(instr.get_rd().unwrap(), data);
         },
         false /* str */ => {
-            ram_lock.write_half_word(address, rd as HalfWord);
+            match address {
+                // if hardware display event, CPU will handle it
+                DISPLAY_ADDR => (),
+                _ => {
+                    match instr.get_lsh().unwrap() {
+                        LSH::StrHalfWord => ram_lock.write_half_word(address, rd as HalfWord),
+                        LSH::LdrDoubleWord => (), // NOT IMPLEMENTED
+                        LSH::StrDoubleWord => (), // NOT IMPLEMENTED
+                        _ => panic!("{}", instr.get_lsh().unwrap().to_string())
+                    };
+                }
+            };
         }
     }
     
@@ -271,7 +298,6 @@ fn ldrh_strh_pre(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexG
     }
 }
 
-// TODO: match with LSH code
 fn ldrh_strh_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction, offset: Word) {
     let rn = registers_lock.get_reg_register(instr.get_rn().unwrap());
     let rd = registers_lock.get_reg_register(instr.get_rd().unwrap());
@@ -280,12 +306,40 @@ fn ldrh_strh_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mutex
 
     match instr.get_ldr_str().unwrap() {
         true  /* ldr */ => {
-            // TODO: add hardware address check
-            let data = ram_lock.read_half_word(address);
-            registers_lock.set_reg_register(instr.get_rd().unwrap(), data as Word);
+            let data = match address {
+                // map to keyboard hardware event if needed
+                // cpu injects character into instruction
+                KEYBOARD_ADDR => instr.get_last_char().unwrap() as Word,
+                _ => {
+                    match instr.get_lsh().unwrap() {
+                        LSH::LdrUHalfWord => {
+                            ram_lock.read_half_word(address) as Word
+                        },
+                        LSH::LdrSByte => {
+                            (ram_lock.read_byte(address) as i8) as Word
+                        },
+                        LSH::LdrSHalfWord => {
+                            (ram_lock.read_half_word(address) as i16) as Word
+                        },
+                        _ => panic!("")
+                    }
+                }
+            };
+            registers_lock.set_reg_register(instr.get_rd().unwrap(), data);
         },
         false /* str */ => {
-            ram_lock.write_half_word(address, rd as HalfWord);
+            match address {
+                // if hardware display event, CPU will handle it
+                DISPLAY_ADDR => (),
+                _ => {
+                    match instr.get_lsh().unwrap() {
+                        LSH::StrHalfWord => ram_lock.write_half_word(address, rd as HalfWord),
+                        LSH::LdrDoubleWord => (), // NOT IMPLEMENTED
+                        LSH::StrDoubleWord => (), // NOT IMPLEMENTED
+                        _ => ()
+                    };
+                }
+            }
         }
     }
 
@@ -506,7 +560,7 @@ pub fn instr_ldmstm(ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut Mut
     let start_address = match instr.get_ldm().unwrap() {
         LDMCode::DecAfter => rn - (number_of_set_bits_in_reg_list * 4) + 4,
         LDMCode::IncAfter => rn,
-        LDMCode::DecBefore => rn - (number_of_set_bits_in_reg_list * 4), // TODO: sometimes causes overflow on IRQ handler calls
+        LDMCode::DecBefore => rn - (number_of_set_bits_in_reg_list * 4),
         LDMCode::IncBefore => rn + 4,
     };
     let end_address = match instr.get_ldm().unwrap() {

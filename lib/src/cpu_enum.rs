@@ -94,6 +94,12 @@ pub enum LSH {
     LdrSHalfWord = 7
 }
 
+impl fmt::Display for LSH {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Copy, Clone, FromPrimitive, PartialEq, Debug)]
 pub enum Condition {
     EQ = 0,
