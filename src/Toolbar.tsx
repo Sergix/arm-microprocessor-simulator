@@ -72,15 +72,6 @@ const Toolbar: Component = () => {
         invoke('cmd_toggle_trace')
     }
 
-    onMount(async () => {
-        log.trace("SolidJS[Toolbar.onMount]: getting cpu state...")
-
-        const payload: ICPUPayload = await invoke('cmd_get_cpu')
-        
-        setTrace(payload.trace)
-        setMode(payload.mode)
-    })
-
     listen('cpu_update', ({ payload }: { payload: ICPUPayload }) => {
         log.trace("SolidJS[FlagsPanel.listen]: updating flags...")
         setTrace(payload.trace)
@@ -89,9 +80,9 @@ const Toolbar: Component = () => {
 
     return (
         <header class={styles.toolbar}>
-            <button onClick={run} disabled={running() || resetting()}>Run</button>
-            <button onClick={step} disabled={running() || resetting()}>Step</button>
-            <button onClick={stop} disabled={!running() || resetting()}>Stop</button>
+            <button onClick={run} disabled={running() || resetting() || filename() === ""}>Run</button>
+            <button onClick={step} disabled={running() || resetting() || filename() === ""}>Step</button>
+            <button onClick={stop} disabled={!running() || resetting() || filename() === ""}>Stop</button>
             <button onClick={addBreakpoint}>Add Breakpoint</button>
             <button onClick={reset} disabled={resetting()}>Reset</button>
             <button onClick={toggle_trace} classList={ {['!bg-green-700']: trace() } }>Trace</button>

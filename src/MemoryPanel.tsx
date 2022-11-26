@@ -1,9 +1,10 @@
-import { Component, createSignal, onMount } from "solid-js"
+import { Component, createEffect, createSignal, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
 import styles from './css/MemoryPanel.module.css'
 import { listen } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api"
+import { filename } from "./state"
 
 const MEMORY_ROW_SIZE = 16;
 
@@ -22,16 +23,8 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
         setChunking(true)
     })
 
-    // updates from backend
-    onMount(async () => {
-        log.trace('SolidJS[MemoryPanel.onMount]: updating global memory state...')
-        const payload: IRAMPayload = await invoke('cmd_get_ram')
-
-        setChecksum(payload.checksum)
-        setChunkedMemory(payload.memory_array)
-
-        setChunking(false)
-    })
+    // clear the output on filename change
+    createEffect(() => { filename() ? setChunkedMemory([[]]) : "" })
 
     listen('ram_update', ({ payload }: { payload: IRAMPayload }) => {
         log.trace('SolidJS[MemoryPanel.listen]: updating global memory state...')
@@ -52,7 +45,7 @@ const MemoryGrid: Component<IMemoryProp> = (memory_prop: IMemoryProp) => {
     }
 
     const getChunkedMemory = async () => {
-        log.trace(`SolidJS[MemoryPanel.getChunkedMemory]: rechunking of memory table with offset ${offset()}...`)
+        log.trace(`SolidJS[MemoryPanel.getChunkedMemory]: rechunking memory table with offset ${offset()}...`)
 
         setChunking(true)
         

@@ -12,13 +12,12 @@ pub struct StackPayload {
 }
 
 pub async fn build_stack_payload(app_handle: AppHandle) -> StackPayload {
+    
     trace!("build_stack_payload: attempting to lock state...");
-
     let registers_state: RegistersState = app_handle.state();
     let registers_lock = &mut registers_state.lock().await;
     let ram_state: RAMState = app_handle.state();
     let ram_lock = &mut ram_state.lock().await;
-
     trace!("build_stack_payload: obtained state locks");
 
     let mut stack_addresses: Vec<StackAddress> = Vec::new();
@@ -35,8 +34,6 @@ pub async fn build_stack_payload(app_handle: AppHandle) -> StackPayload {
 
     let bottom_address = sp.checked_sub(4 * 4).unwrap_or(0);
     loop {
-        trace!("build_stack_payload: {}ca {}ba", current_address, bottom_address);
-
         let address = current_address as Word;
         let value = ram_lock.read_word(current_address as Word);
         stack_addresses.push((address, value));

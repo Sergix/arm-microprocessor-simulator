@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api'
 import { listen } from '@tauri-apps/api/event'
-import { Component, createSignal, onMount } from 'solid-js'
+import { Component, createEffect, createSignal, onMount } from 'solid-js'
 import * as log from 'tauri-plugin-log-api'
+import { filename } from './state'
 
 const FlagsPanel: Component<IFlagsProp> = (prop: IFlagsProp) => {
     const [nFlag, setNFlag] = createSignal(false)
@@ -21,6 +22,17 @@ const FlagsPanel: Component<IFlagsProp> = (prop: IFlagsProp) => {
     listen('flags_update', ({ payload }: { payload: IFlagsPayload }) => {
         log.trace("SolidJS[FlagsPanel.listen]: updating flags...")
         setFlags(payload)
+    })
+
+    // clear the output on filename change
+    createEffect(() => {
+        if (filename()) {
+            setNFlag(false)
+            setZFlag(false)
+            setCFlag(false)
+            setVFlag(false)
+            setIFlag(false)
+        }
     })
 
     return (

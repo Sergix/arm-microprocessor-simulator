@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api"
 import { listen } from "@tauri-apps/api/event"
 import { Accessor, Component, createEffect, createSignal, indexArray, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
+import { filename } from "./state"
 
 const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
     const [registers, setRegisters] = createSignal(Array<number>())
@@ -11,13 +12,8 @@ const RegisterPanel: Component<IRegisterProp> = (prop: IRegisterProp) => {
         setRegisters(payload.register_array)
     })
 
-    onMount(async () => {
-        log.trace("SolidJS[RegisterPanel.onMount]: getting register state...")
-
-        const payload: IRegistersPayload = await invoke('cmd_get_registers')
-        
-        setRegisters(payload.register_array)
-    })
+    // clear the output on filename change
+    createEffect(() => { filename() ? setRegisters([]) : "" })
 
     return (
         <section>

@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api'
 import { listen } from '@tauri-apps/api/event'
-import { Component, createSignal, Show } from 'solid-js'
+import { Component, createEffect, createSignal, Show } from 'solid-js'
 import { trace } from 'tauri-plugin-log-api'
+import { filename } from './state'
 
 const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
     const [output, setOutput] = createSignal("")
@@ -52,6 +53,9 @@ const TerminalPanel: Component<ITerminalProp> = (prop: ITerminalProp) => {
         trace(`SolidJS[TerminalPanel.listen] clearing terminal`)
         setOutput("")
     })
+
+    // clear the output on filename change
+    createEffect(() => { filename() ? setOutput("") : "" })
 
     return (
         <section class="w-full">

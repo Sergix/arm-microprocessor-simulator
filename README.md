@@ -52,8 +52,8 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 ### Not required, but implemented features
 
 **LDRH/STRH**  
-*Tests: `\tests\sergix_halfword_no_io.c`, `\tests\sergix_halfword_no_io.lst`*  
-*Trace log: `\tests\sergix_halfword_no_io_trace.log`*
+*Tests: `\tests\pmcgi795_halfword_no_io.c`, `\tests\pmcgi795_halfword_no_io.lst`*  
+*Trace log: `\tests\logs\pmcgi795_halfword_no_io_trace.log`*
 
 LDRH and STRH modes are implemented in the program. The trace log shows the following line and its translated assembly to show that it properly functions as the instruction correctly loads the value `1` into the register `r2`:
 
@@ -197,12 +197,18 @@ When one of the NZCV flags is active, the flag's icon will be green.
 
 ### Sim1 Tracefile Comparisons
 
+- The tests with provided trace logs are identical.
+- 
 
 ### Sim2 Tracefile Comparisons
 
+- All non-IO tests with provided trace logs are identical.
+- All IO tests work as expected.
+
+### General
+
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
-- Loading some IO-based programs after running an IO-based program can cause the program to hang due to thread locks
-- Some IO-based programs (such as quicksort) will hang when running in "exec" mode with trace logs
+- Although rarely, the program may hang when running a program using the `--traceall` and `--exec` options.
 
 ## [Project Journal](CHANGELOG.md)
 

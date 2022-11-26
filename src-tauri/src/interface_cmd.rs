@@ -3,7 +3,7 @@ use log::{trace};
 use tauri::{AppHandle, Manager};
 use crate::{memory_cmd::chunk_memory, disassembly_cmd::build_disassembly_payload, stack_cmd::build_stack_payload};
 
-pub async fn emit_payloads (app_handle: AppHandle) {
+pub async fn emit_payloads(app_handle: AppHandle) {
     {
         let disassembly_payload = build_disassembly_payload(app_handle.clone()).await;
         app_handle.emit_all("disassembly_update", disassembly_payload).unwrap();
@@ -75,38 +75,36 @@ pub async fn cmd_run(app_handle: AppHandle) -> Result<(), ()> {
 }
 
 #[tauri::command]
-pub async fn cmd_step(app_handle: AppHandle) -> Result<(), ()> {
+pub async fn cmd_step(app_handle: AppHandle, cpu_state: CPUState<'_>) -> Result<(), ()> {
     trace!("cmd_step: stepping into CPU...");
-
-    let cpu_state: CPUState = app_handle.state();
     (&mut cpu_state.lock().await).step(app_handle.clone()).await;
-
     trace!("cmd_step: CPU step finished, sending payload to frontend...");
+
     emit_payloads(app_handle.clone()).await;
     
     Ok(())
 }
 
 #[tauri::command]
-pub async fn cmd_stop(app_handle: AppHandle) -> Result<bool, ()> {
+pub async fn cmd_stop(cpu_thread_watcher_state: CPUThreadWatcherState<'_>) -> Result<bool, ()> {
     trace!("cmd_stop: stopping CPU thread...");
     
-    let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
-    cpu_thread_state.lock().await.set_running(false);
+    trace!("cmd_stop: attempting to lock state...");
+    (&mut cpu_thread_watcher_state.lock().await).set_running(false);
+    trace!("cmd_stop: stopped CPU thread");
     
     Ok(true)
 }
 
 #[tauri::command]
-pub async fn cmd_reset(filename: String, app_handle: AppHandle) -> Result<(), ()> {
+pub async fn cmd_reset(filename: String, cpu_thread_watcher_state: CPUThreadWatcherState<'_>, app_handle: AppHandle) -> Result<(), ()> {
     trace!("cmd_reset: clearing memory and reloading binary...");
 
     // stop CPU first
-    let cpu_thread_state: CPUThreadWatcherState = app_handle.state();
-    cpu_thread_state.lock().await.set_running(false);
+    cpu_thread_watcher_state.lock().await.set_running(false);
 
     // reset IRQ line
-    cpu_thread_state.lock().await.clear_irq_flag();
+    cpu_thread_watcher_state.lock().await.clear_irq_flag();
 
     // clear terminal
     app_handle.emit_all("terminal_clear", {}).unwrap();
