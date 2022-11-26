@@ -33,3 +33,8 @@ Instruction decoding uses one primary `Instruction` class since structs cannot b
 Since this program only supports 3 modes (SYS, SVC, IRQ) with 6 extra banked registers (SVC r13/r14, IRQ r13/r14, SPSR_svc, SPSR_irq), banked registers are simply an extension of the register memory array. Constant values and methods are provided in `lib::memory` and `lib::memory::Registers` to calculate the appropriate indices for those registers when needed.
 
 ## Terminal I/O
+
+
+## Frontend UI Component Updates
+
+Because the backend cannot guaruantee that once it attempts to send the original state update to the frontend that the frontend components have been mounted, every component individually requests a state update once it mounts.

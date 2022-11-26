@@ -91,8 +91,7 @@ pub struct TerminalReadlinePayload {
 pub struct CPU {
     breakpoints: Vec<AddressSize>,
     trace: bool,
-    trace_step: Word,
-    irq: bool,
+    trace_step: Word
 }
 
 impl CPU {
@@ -100,8 +99,7 @@ impl CPU {
         Self {
             breakpoints: vec![0; 0],
             trace: false,
-            trace_step: 1,
-            irq: false,
+            trace_step: 1
         }
     }
 
@@ -117,10 +115,6 @@ impl CPU {
 
     pub fn reset_trace_step(&mut self) {
         self.trace_step = 1
-    }
-
-    pub fn get_irq(&self) -> bool {
-        self.irq
     }
 
     pub async fn stop(&self, app_handle: AppHandle) {
@@ -211,9 +205,59 @@ impl CPU {
     pub fn is_breakpoint(&self, address: &AddressSize) -> bool {
         self.breakpoints.contains(&address)
     }
+
+    fn putchar(&self, registers_lock: &mut MutexGuard<'_, Registers>, app_handle: AppHandle) {
+        let arg_char = registers_lock.get_reg_register(Register::r0);
+        app_handle.emit_all("terminal_append", TerminalPutcharPayload {
+            char: char::from_u32(arg_char).unwrap_or('\0')
+        }).unwrap();
+    }
+
+    async fn readline(&self, ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, app_handle: AppHandle) {
+        let arg_dest_addr = registers_lock.get_reg_register(Register::r1);
+        let arg_max_bytes = registers_lock.get_reg_register(Register::r2);
+
+        app_handle.emit_all("terminal_prompt", TerminalReadlinePayload {
+            max_bytes: arg_max_bytes - 1 // fit null terminator
+        }).unwrap();
+
+        // wait for frontend to return
+        // frontend will update CPUThreadWatcher state
+        loop {
+            // check thread state and drop immediately
+            {
+                let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
+                if cpu_thread_watcher_state.lock().await.get_prompt_flag() {
+                    break;
+                }
+            }
+        }
+
+        // get thread state and drop immediately
+        let mut input;
+        {
+            let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
+            let cpu_thread_watcher_lock = &mut cpu_thread_watcher_state.lock().await;
+            input = cpu_thread_watcher_lock.get_prompt_input();
+            cpu_thread_watcher_lock.clear_prompt_flag();
+        }
+
+        trace!("step: input received: {} {}bytes {}dest", input, arg_max_bytes, arg_dest_addr);
+
+        // append CR if received bytes < (arg_max_bytes + \0)
+        if input.len() < (arg_max_bytes - 1) as usize {
+            input.push(0xd as char);
+        }
+        input.push('\0');
+
+        let mut i = 0;
+        for c in input.chars() {
+            ram_lock.write_byte(arg_dest_addr + i, c as Byte);
+            i += 1;
+        }
+    }
     
     pub async fn run(&mut self, app_handle: AppHandle) {
-        // TODO: cleanup, have a better way to signal state between CPU::run and CPU::step
 
         // update thread state and drop immediately
         {
@@ -230,10 +274,9 @@ impl CPU {
                 if !cpu_thread_state.lock().await.is_running() { break }
             }
 
-            if self.step(app_handle.clone()).await {
+            if self.step(app_handle.clone()).await == InstrExecuteCondition::HLT {
                 // stop when HLT instruction or other exception
                 trace!("run: hit HLT or exception");
-                self.stop(app_handle.clone()).await;
                 break
             }
 
@@ -242,19 +285,18 @@ impl CPU {
                 let registers_state: RegistersState = app_handle.state();
                 if self.is_breakpoint(&(registers_state.lock().await).get_pc_current_address()) { 
                     trace!("run: hit breakpoint");
-                    self.stop(app_handle.clone()).await;
                     break
                 }
             }
         }
 
+        self.stop(app_handle.clone()).await;
+
         trace!("run: cpu stopped");
     }
 
     // returns true if HLT
-    pub async fn step(&mut self, app_handle: AppHandle) -> bool {
-        // TODO: cleanup
-
+    pub async fn step(&mut self, app_handle: AppHandle) -> InstrExecuteCondition {
         let ram_state: RAMState = app_handle.state();
         let registers_state: RegistersState = app_handle.state();
         let ram_lock = &mut ram_state.lock().await;
@@ -265,16 +307,19 @@ impl CPU {
         trace!("step: trace_step: {}", self.trace_step);
         trace!("step: cpsr: {}", registers_lock.get_cpsr());
 
-        // save PC before fetch begins
+        // save PC before fetch begins for logging after execute
         let saved_pc = registers_lock.get_pc_current_address();
 
         let instr_raw = self.fetch(ram_lock, registers_lock);
         trace!("step: {}pc = {:x}", registers_lock.get_pc_current_address(), instr_raw);
 
-        // halt when instruction is HLT
-        if instr_raw == 0 { registers_lock.inc_pc(); return true }
+        // halt when instruction is HLT (0)
+        if instr_raw == 0 {
+            registers_lock.inc_pc();
+            return InstrExecuteCondition::HLT;
+        }
 
-        // check irq and thread state and drop immediately
+        // check irq and thread state here since the state is used in the decode and later steps, then drop lock immediately
         // CPUThreadWatcherState cannot be shared across entire function since interrupt may occur mid-step
         //  or while step is waiting for prompt event from frontend
         let irq;
@@ -287,9 +332,10 @@ impl CPU {
 
         // get the instruction struct from the raw Word
         let mut instr: Instruction = self.decode(instr_raw);
-        //
+
         // inject possibly needed information into instruction before executing
-        //
+
+        // pc for branch instructions
         instr.set_pc_address(registers_lock.get_pc());
         // manually map any display hardware events before executing instruction
         // rn = DISPLAY_ADDR
@@ -297,11 +343,11 @@ impl CPU {
         if util::is_write_instr(instr) && instr.get_rn().is_some() && registers_lock.get_reg_register(instr.get_rn().unwrap()) == DISPLAY_ADDR {
             let arg_char = char::from_u32(registers_lock.get_reg_register(instr.get_rd().unwrap())).unwrap_or('\0');
             trace!("step: mapping hardware display event, char = 0x{:x}", arg_char as Byte);
-            app_handle.emit_all("cmd_terminal_append", TerminalPutcharPayload {
+            app_handle.emit_all("terminal_append", TerminalPutcharPayload {
                 char: arg_char
             }).unwrap();
         }
-        // inject last character from keyboard event if needed
+        // inject last character from keyboard event if loading from keyboard hardware address
         instr.set_last_char(last_char);
 
         // pass the necessary state objects and instruction struct;
@@ -330,19 +376,18 @@ impl CPU {
         );
         self.trace_step += 1;
 
-        // handle instruction exceptions
+        // handle instruction SWI exceptions
         match exec_result {
             InstrExecuteCondition::HLT => {
                 trace!("step: hit SWI HLT");
                 // decrement PC to stop at HLT instruction in disassembly
                 registers_lock.dec_pc();
-                return true
+                return InstrExecuteCondition::HLT
             },
             InstrExecuteCondition::SWI => {
                 // processed here so that we can properly access the app thread
-                trace!("step: processing SWI event {:x}swi", instr.get_swi().unwrap());
+                trace!("step: processing SWI event 0x{:x}swi", instr.get_swi().unwrap());
 
-                // https://protect.bju.edu/cps/courses/cps310/lectures/lecture11/
                 let cpsr = registers_lock.get_cpsr();
                 let pc = registers_lock.get_pc();
 
@@ -350,58 +395,13 @@ impl CPU {
                 registers_lock.set_spsr_svc(cpsr);
                 registers_lock.set_cpsr_mode(Mode::SVC);
                 registers_lock.set_cpsr_flag(5, false); // ARM state
-                registers_lock.set_cpsr_flag(7, true);  // disable interrupts
+                registers_lock.set_i_flag(true);  // disable interrupts
                 registers_lock.set_pc(0x08+8); // add 8 bytes for PC
 
-                if instr.get_swi().unwrap() == 0x0 {
-                    // putchar
-                    let arg_char = registers_lock.get_reg_register(Register::r0);
-                    app_handle.emit_all("cmd_terminal_append", TerminalPutcharPayload {
-                        char: char::from_u32(arg_char).unwrap_or('\0')
-                    }).unwrap();
-                } else if instr.get_swi().unwrap() == 0x6a {
-                    // getline
-                    let arg_dest_addr = registers_lock.get_reg_register(Register::r1);
-                    let arg_max_bytes = registers_lock.get_reg_register(Register::r2);
-
-                    app_handle.emit_all("cmd_terminal_prompt", TerminalReadlinePayload {
-                        max_bytes: arg_max_bytes - 1 // fit null terminator
-                    }).unwrap();
-
-                    // wait for frontend to return
-                    // frontend will update CPUThreadWatcher state
-                    loop {
-                        // check thread state and drop immediately
-                        {
-                            let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
-                            if cpu_thread_watcher_state.lock().await.get_prompt_flag() {
-                                break;
-                            }
-                        }
-                    }
-
-                    // get thread state and drop immediately
-                    let mut input;
-                    {
-                        let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
-                        let cpu_thread_watcher_lock = &mut cpu_thread_watcher_state.lock().await;
-                        input = cpu_thread_watcher_lock.get_prompt_input();
-                        cpu_thread_watcher_lock.clear_prompt_flag();
-                    }
-
-                    trace!("step: input received: {} {}bytes {}dest", input, arg_max_bytes, arg_dest_addr);
-
-                    // append CR if received bytes < (arg_max_bytes + \0)
-                    if input.len() < (arg_max_bytes - 1) as usize {
-                        input.push(0xd as char);
-                    }
-                    input.push('\0');
-
-                    let mut i = 0;
-                    for c in input.chars() {
-                        ram_lock.write_byte(arg_dest_addr + i, c as Byte);
-                        i += 1;
-                    }
+                match instr.get_swi().unwrap() {
+                    0x0 => self.putchar(registers_lock, app_handle.clone()),
+                    0x6a => self.readline(ram_lock, registers_lock, app_handle.clone()).await,
+                    _ => ()
                 }
             },
             InstrExecuteCondition::NOP => (),
@@ -411,9 +411,9 @@ impl CPU {
         // only when IRQ interrupts are not disabled
         if irq && !registers_lock.get_i_flag() {
             // A2.6.8
-
             trace!("step: received IRQ event for char {}, handling...", last_char);
 
+            // clear the IRQ flag
             {
                 let cpu_thread_watcher_state: CPUThreadWatcherState = app_handle.state();
                 cpu_thread_watcher_state.lock().await.clear_irq_flag();
@@ -429,8 +429,7 @@ impl CPU {
             registers_lock.set_pc(0x18+8); // add 8 bytes for PC
         }
 
-        // continue normally
-        return false
+        return exec_result
     }
 }
 
@@ -439,8 +438,7 @@ impl Default for CPU {
         Self {
             breakpoints: vec![0; 0],
             trace: false,
-            trace_step: 1,
-            irq: false,
+            trace_step: 1
         }
     }
 }

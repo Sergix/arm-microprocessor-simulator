@@ -11,6 +11,8 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 
 ## Features
 
+### Phase 1 nd GUI
+
 - `--mem`, `--exec`, and `<elf-file>` command line options are supported and validated
 - Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
 - Scrollable memory grid
@@ -23,6 +25,9 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Disassembly table (with accurate assembly)
 - Register viewer (r0..15)
 - Flags display
+
+### Phase 3
+
 - Internal CPU simulator
 - Resizable window
 - Add and toggle breakpoints in the disassembly window
@@ -33,12 +38,33 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
   - Correct trace for C- and B-level tests
 - Automatic execution through `--exec` option
 
-### Not yet implemented features
+### Phase 4
 
-- Code is not properly commented
-- Unit tests
-  - Not many for disassembly, decoding, or `instruction` building
-  - Testing `lib::execute` for instructions is currently not feasible due to threading model (but *may* be possible; not yet tested)
+- Banked register swapping and CPU modes for SYS, SVC, and IRQ modes
+- Trace logging for all system modes
+- SWI handlers (putchar, halt, readline)
+- Memory-mapped keyboard and display device handling
+- All required instructions implemented
+- Terminal window interaction with real-time output and interactive itnerrupt prompts
+- Processor mode notes in toolbar
+- Active hotkey notification in toolbar
+
+### Not required, but implemented features
+
+**LDRH/STRH**  
+*Tests: `\tests\sergix_halfword_no_io.c`, `\tests\sergix_halfword_no_io.lst`*  
+*Trace log: `\tests\sergix_halfword_no_io_trace.log`*
+
+LDRH and STRH modes are implemented in the program. The trace log shows the following line and its translated assembly to show that it properly functions as the instruction correctly loads the value `1` into the register `r2`:
+
+`1048:	e1d220b2 	ldrh	r2, [r2, #2]`  
+`000019 00001048 1FFFDB3B 0000 SYS 0=00000000 1=00000000 2=00000001 3=00000006 4=00000000 5=00000000 6=00000000 7=00000000 8=00000000 9=00000000 10=00000000 11=00006FFC 12=00000000 13=00006FF0 14=00000000`
+
+### Not implemented features
+
+- LDRH/STRH doublewords
+- LDRH/STRH LSH code disassembly
+- Log suppression for reset handler
 
 ## Prerequisites
 
@@ -81,7 +107,7 @@ To run the built-in development environment with hot module reloading (HMR), run
 
 ### Testing
 
-To run the tests, run `cd lib` -> `cargo test`.
+To run the tests, run `cd lib` then `cargo test`.
 
 Testing is implemented for the Memory trait and for some of the CPU. Some of the CPU is untestable as core logic because it's tightly integrated with the threading model and state model of the internal API. [The Tauri project is currently pushing for mocking these models for testing in the next version.](https://github.com/tauri-apps/tauri/pull/4752)
 
@@ -98,13 +124,15 @@ The Debug target binary (`--debug` mode) logs output to the shell, the WebView d
 
 ## User Guide
 
-`armsim.exe [--mem <memory-size>] [--exec] <elf-file>`
+`armsim.exe [--mem <memory-size>] [--traceall] [--exec] <elf-file>`
 
 To launch the application from the command-line, navigate to the directory containing the program executable and run `armsim.exe elf_file.bin`. By default, this loads `elf_file.bin` into a 32K block of simulated RAM and opens a window on your desktop with a scrollable memory grid. The initial window has a button titled **Load ELF**. Once you click this button, it will open up a file selection dialog where you can select your ELF binary and it will automatically load into the window.
 
 To specify the amount of simulated RAM, simply pass in the `--mem <memory_size>` option: `armsim.exe --mem 33768 elf_file.bin`
 
 The `--exec` option automatically begins executing the executable oonce it finishes loading and enables trace logging (see *Trace Logs* below). The `<elf-file>` option must also be specified.
+
+The `--traceall` option enables trace logging for *all* system modes: `SYS`, `SVC`, `IRQ`. By default, trace logs only log `SYS` mode steps.
 
 #### Debugging Controls
 
@@ -166,6 +194,11 @@ When one of the NZCV flags is active, the flag's icon will be green.
   - sets CPU mode, jumps, and halts
 
 ## Bug Report
+
+### Sim1 Tracefile Comparisons
+
+
+### Sim2 Tracefile Comparisons
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
 - Loading some IO-based programs after running an IO-based program can cause the program to hang due to thread locks

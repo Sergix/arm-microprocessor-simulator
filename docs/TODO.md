@@ -9,7 +9,7 @@
 ### Docs
 
 - [-] [report](https://protect.bju.edu/cps/courses/armsim-project/exec2/report.html)
-  - [ ] Features
+  - [x] Features
     - If you implemented instructions or addressing modes that were not required by the specifications, highlight those here
     - In order to receive extra credit for them, you must provide a small extras.s test file that tests your extra addressing modes / instructions, along with a trace log with relevant portions highlighted, and a detailed discussion of how the log demonstrates that your instructions are correctly executed
   - [-] User Guide: A comprehensive guide to the features of your simulator, including command line arguments as well as GUI capabilities. Discuss how to create exe's that can be used with your simulator. Include screen shots.

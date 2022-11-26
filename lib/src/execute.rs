@@ -520,18 +520,16 @@ pub fn instr_ldrhstrh_reg_post(ram_lock: &mut MutexGuard<'_, RAM>, registers_loc
 
 pub fn instr_b(_ram_lock: &mut MutexGuard<'_, RAM>, registers_lock: &mut MutexGuard<'_, Registers>, instr: Instruction) -> InstrExecuteCondition {
     if instr.get_l_bit().unwrap() {
-        // TODO: simplify this, since this should be "get_pc() + 4"
         let address_after_branch = registers_lock.get_pc_current_address() + 4;
         registers_lock.set_reg_register(Register::r14, address_after_branch);
     }
 
-    // TODO: figure out how to make this much simpler
     // increment by an extra 4 bytes because:
-    // - CPU fetch
-    // - CPU decode
-    // - CPU execute branch instruction
+    // 1. CPU fetch
+    // 2. CPU decode
+    // 3. CPU execute branch instruction
     //   - go to target address
-    // - CPU increments PC by 4
+    // 4. CPU increments PC by 4
     // -> CPU only increments 1 instruction ahead
     // => need to increment by extra 4 bytes here to ensure CPU PC is two instructions ahead
     let target_address: Word = (instr.get_pc_address() as SignedWord + instr.get_offset().unwrap() + 4) as Word;

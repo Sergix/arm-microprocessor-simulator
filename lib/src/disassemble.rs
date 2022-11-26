@@ -119,6 +119,16 @@ fn get_fields_str(field_mask: Word) -> String {
     str
 }
 
+fn get_optional_opcode_str(opcode: DataOpcode, rn: Option<Register>) -> String {
+    match opcode {
+        DataOpcode::MOV | DataOpcode::MVN => "".to_string(), 
+        _ => match rn {
+            Some(r) => format!("{},", r.to_string()),
+            None => "".to_string(),
+        }
+    }
+}
+
 // formatted output for the instructions
 // used for disassembly
 impl fmt::Display for Instruction {
@@ -129,15 +139,10 @@ impl fmt::Display for Instruction {
             },
             InstrType::DataImm => {
                 // mov rd, #imm8
-                // optional operand2
-                let rn = match self.get_data_opcode().unwrap() {
-                    DataOpcode::MOV | DataOpcode::MVN => "".to_string(), 
-                    _ => match self.get_rn() {
-                        Some(r) => format!("{},", r.to_string()),
-                        None => "".to_string(),
-                    },
-                };
+                // optional rn
+                let rn = get_optional_opcode_str(self.get_data_opcode().unwrap(), self.get_rn());
 
+                // get the shifted value
                 let (shifter_operand, _shifter_carry_out) = Instruction::rotate_value(
                     self.get_rotate().unwrap(),
                     self.get_imm().unwrap_or(0),
@@ -158,24 +163,16 @@ impl fmt::Display for Instruction {
                 )?;
             },
             InstrType::DataRegImm => {
-                // TODO: refactor the data disassemblies
-
                 // optional rn
-                let rn = match self.get_data_opcode().unwrap() {
-                    DataOpcode::MOV | DataOpcode::MVN => "".to_string(), 
-                    _ => match self.get_rn() {
-                        Some(r) => format!("{},", r.to_string()),
-                        None => "".to_string(),
-                    },
-                };
+                let rn = get_optional_opcode_str(self.get_data_opcode().unwrap(), self.get_rn());
                 
                 // optional operand2
                 let operand2 = match self.get_imm_shift() {
-                    Some(_) => {
-                        if self.get_imm_shift().unwrap() == 0 {
+                    Some(imm_shift) => {
+                        if imm_shift == 0 {
                             "".to_string()
                         } else {
-                            format!("{} #{}", self.get_shift_type().unwrap().to_string().to_lowercase(), self.get_imm_shift().unwrap().to_string())
+                            format!("{} #{}", self.get_shift_type().unwrap().to_string().to_lowercase(), imm_shift.to_string())
                         }
                     },
                     None => "".to_string(),
@@ -197,20 +194,13 @@ impl fmt::Display for Instruction {
             InstrType::DataRegReg => {
                 // add rd, rm, sh rs
                 // optional rn
-                let rn = match self.get_data_opcode().unwrap() {
-                    DataOpcode::MOV | DataOpcode::MVN => "".to_string(), 
-                    _ => match self.get_rn() {
-                        Some(r) => format!("{},", r.to_string()),
-                        None => "".to_string(),
-                    }
-                };
+                let rn = get_optional_opcode_str(self.get_data_opcode().unwrap(), self.get_rn());
                 
                 // optional operand2
                 let operand2 = match self.get_imm_shift() {
                     Some(_) => format!("{} {}", self.get_shift_type().unwrap().to_string().to_lowercase(), self.get_rs().unwrap().to_string()),
                     None => "".to_string(),
                 };
-                
 
                 fmt.write_str(
                     format!(
