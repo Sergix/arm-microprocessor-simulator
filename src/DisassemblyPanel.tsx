@@ -5,11 +5,11 @@ import { Component, createSignal, onMount } from "solid-js"
 import * as log from 'tauri-plugin-log-api'
 
 const DisassemblyPanel: Component<IDisassemblyProp> = (prop: IDisassemblyProp) => {
-    const [programCounter, setProgramCounter] = createSignal(0)
+    const [pc, setPc] = createSignal(0)
     const [instructions, setInstructions] = createSignal(new Array<IDisassemblyInstruction>())
 
     listen("disassembly_update", ({payload}: { payload: IDisassemblyPayload }) => {
-        setProgramCounter(payload.pc)
+        setPc(payload.pc)
         setInstructions(payload.instructions)
     });
 
@@ -26,7 +26,7 @@ const DisassemblyPanel: Component<IDisassemblyProp> = (prop: IDisassemblyProp) =
         log.trace("SolidJS[DisassemblyPanel.onMount]: getting disassembly...")
 
         const payload: IDisassemblyPayload = await invoke('cmd_get_disassembly')
-        setProgramCounter(payload.pc)
+        setPc(payload.pc)
         setInstructions(payload.instructions)
     })
 
@@ -46,7 +46,7 @@ const DisassemblyPanel: Component<IDisassemblyProp> = (prop: IDisassemblyProp) =
                     <tbody>
                         {instructions().map((instruction: IDisassemblyInstruction, i: number) => {
                             return (
-                                <tr class={instruction[1] === programCounter() ? 'bg-blue-900' : 'bg-gray-800'}>
+                                <tr class={instruction[1] === pc() ? 'bg-blue-900' : 'bg-gray-800'}>
                                     <td class="pl-2 text-red-700 cursor-pointer opacity-0 hover:opacity-50 active:opacity-100" classList={ {['opacity-100']: instruction[0]} } colspan="2" onClick={(_) => toggleBreakpoint(i)}>◉</td>
                                     <td class="pl-2">{instruction[1].toString(16).padStart(8, '0')}</td>
                                     <td class="pl-6">{instruction[2].toString(16).padStart(8, '0')}</td>

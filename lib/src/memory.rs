@@ -139,7 +139,7 @@ pub trait Memory {
 
     fn read_word(&mut self, addr: AddressSize) -> Word {
         if (addr + 3) as usize > self.get_size() {
-            panic!("Memory[read_word]: addr extends past memory size");
+            panic!("Memory[read_word]: addr {:x} extends past memory size", addr);
         }
 
         if addr % 4 != 0 {
@@ -162,7 +162,7 @@ pub trait Memory {
     
     fn write_word(&mut self, addr: AddressSize, value: Word) {
         if (addr + 3) as usize > self.get_size() {
-            panic!("Memory[write_word]: addr extends past memory size");
+            panic!("Memory[write_word]: addr {:x} extends past memory size", addr);
         }
 
         if addr % 4 != 0 {
@@ -194,7 +194,7 @@ pub trait Memory {
     
     fn read_half_word(&mut self, addr: AddressSize) -> HalfWord {
         if (addr + 1) as usize > self.get_size() {
-            panic!("Memory[read_half_word]: addr extends past memory size");
+            panic!("Memory[read_half_word]: addr {:x} extends past memory size", addr);
         }
 
         if addr % 2 != 0 {
@@ -215,7 +215,7 @@ pub trait Memory {
     
     fn write_half_word(&mut self, addr: AddressSize, value: HalfWord) {
         if (addr + 1) as usize > self.get_size() {
-            panic!("Memory[write_half_word]: addr extends past memory size");
+            panic!("Memory[write_half_word]: addr {:x} extends past memory size", addr);
         }
 
         if addr % 2 != 0 {
@@ -246,7 +246,7 @@ pub trait Memory {
     
     fn read_byte(&mut self, addr: AddressSize) -> Byte {
         if addr as usize > self.get_size() {
-            panic!("Memory[read_byte]: addr extends past memory size");
+            panic!("Memory[read_byte]: addr {:x} extends past memory size", addr);
         }
 
         *self.get_memory_array().get(addr as usize).unwrap() as Byte
@@ -255,7 +255,7 @@ pub trait Memory {
     
     fn write_byte(&mut self, addr: AddressSize, value: Byte) {
         if addr as usize > self.get_size() {
-            error!("Memory[write_byte]: addr extends past memory size");
+            error!("Memory[write_byte]: addr {:x} extends past memory size", addr);
             return
         }
 
@@ -403,7 +403,7 @@ impl Registers {
     pub fn get_pc(&mut self) -> Word {
         self.get_register(15)
     }
-
+    
     pub fn get_pc_current_address(&mut self) -> Word {
         self.get_pc() - 8
     }
@@ -412,10 +412,14 @@ impl Registers {
         let next_addr = self.get_pc().checked_sub(4).unwrap_or(0);
         self.set_register(15, next_addr)
     }
-
+    
     pub fn inc_pc(&mut self) {
         let next_addr = self.get_pc() + 4;
         self.set_register(15, next_addr)
+    }
+
+    pub fn get_sp(&mut self) -> Word {
+        self.get_register(13)
     }
 
     // CPSR register is last register
@@ -423,11 +427,11 @@ impl Registers {
         // have to manually read location since CPSR is not little- or big-endian
         self.read_word(CPSR_ADDR)
     }
-
+    
     pub fn set_cpsr(&mut self, value: Word) {
         self.write_word(CPSR_ADDR, value);
     }
-
+    
     pub fn set_cpsr_flag(&mut self, bit: u8, flag: bool) {
         self.set_flag(CPSR_ADDR, bit, flag)
     }

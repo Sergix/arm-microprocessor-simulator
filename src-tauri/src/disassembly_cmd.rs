@@ -12,8 +12,8 @@ pub struct DisassemblyPayload {
 	instructions: Vec<DisassemblyInstruction>
 }
 
-pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPayload {
-    trace!("emit_dissassembly_payload: attempting to lock state...");
+pub async fn build_disassembly_payload(app_handle: AppHandle) -> DisassemblyPayload {
+    trace!("build_dissassembly_payload: attempting to lock state...");
 
     let cpu_state: CPUState = app_handle.state();
     let cpu_lock = &mut cpu_state.lock().await;
@@ -22,7 +22,7 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
     let ram_state: RAMState = app_handle.state();
     let ram_lock = &mut ram_state.lock().await;
 
-    trace!("emit_dissassembly_payload: obtained state locks");
+    trace!("build_dissassembly_payload: obtained state locks");
 
     let mut disassembly_instructions: Vec<DisassemblyInstruction> = Vec::new();
 
@@ -42,7 +42,7 @@ pub async fn build_disassembly_payload (app_handle: AppHandle) -> DisassemblyPay
         if address > pc + 12 { break }
     }
 
-    trace!("emit_dissassembly_payload: finished");
+    trace!("build_dissassembly_payload: finished");
 
     DisassemblyPayload {
         pc,

@@ -1,11 +1,18 @@
 use lib::{state::{CPUState, CPUThreadWatcherState, RegistersState, RAMState, TraceFileState}, memory::{AddressSize, RegistersPayload, RAMPayload, FlagsPayload, Memory }, cpu::CPUPayload};
 use log::{trace};
 use tauri::{AppHandle, Manager};
-use crate::{memory_cmd::chunk_memory, disassembly_cmd::build_disassembly_payload};
+use crate::{memory_cmd::chunk_memory, disassembly_cmd::build_disassembly_payload, stack_cmd::build_stack_payload};
 
 pub async fn emit_payloads (app_handle: AppHandle) {
-    let disassembly_payload = build_disassembly_payload(app_handle.clone()).await;
-    app_handle.emit_all("disassembly_update", disassembly_payload).unwrap();
+    {
+        let disassembly_payload = build_disassembly_payload(app_handle.clone()).await;
+        app_handle.emit_all("disassembly_update", disassembly_payload).unwrap();
+    }
+
+    {
+        let stack_payload = build_stack_payload(app_handle.clone()).await;
+        app_handle.emit_all("stack_update", stack_payload).unwrap();
+    }
 
     // scoped block to ensure locks are dropped
     {
@@ -102,7 +109,7 @@ pub async fn cmd_reset(filename: String, app_handle: AppHandle) -> Result<(), ()
     cpu_thread_state.lock().await.clear_irq_flag();
 
     // clear terminal
-    app_handle.emit_all("cmd_terminal_clear", {}).unwrap();
+    app_handle.emit_all("terminal_clear", {}).unwrap();
 
     crate::loader_cmd::load_elf(filename, app_handle.clone()).await;
     emit_payloads(app_handle.clone()).await;

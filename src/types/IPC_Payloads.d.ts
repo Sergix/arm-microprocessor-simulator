@@ -45,3 +45,12 @@ interface IDisassemblyPayload {
 	pc: number
 	instructions: Array<IDisassemblyInstruction>
 }
+
+// array containing tuple, each with
+// - address (focuses at current SP): Word/number
+// - value at that address: Word/number
+interface IStackAddress extends Array<number> { 0: number, 1: number }
+interface IStackPayload {
+	sp: number
+	addresses: Array<IStackAddress>
+}
