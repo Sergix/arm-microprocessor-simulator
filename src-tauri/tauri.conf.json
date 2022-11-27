@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "armsim",
-    "version": "0.1.0"
+    "version": "1.0.0"
   },
   "tauri": {
     "allowlist": {
@@ -89,10 +89,10 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 800,
+        "width": 1400,
+        "height": 1000,
         "resizable": true,
-        "title": "armsim",
-        "width": 1200
+        "title": "ARMsim"
       }
     ]
   }

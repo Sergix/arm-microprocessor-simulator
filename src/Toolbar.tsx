@@ -46,6 +46,7 @@ const Toolbar: Component = () => {
 
     const stop = () => {
         invoke('cmd_stop')
+        setRunning(false)
     }
 
     const addBreakpoint = () => {

@@ -88,11 +88,11 @@ pub async fn cmd_step(app_handle: AppHandle, cpu_state: CPUState<'_>) -> Result<
 #[tauri::command]
 pub async fn cmd_stop(cpu_thread_watcher_state: CPUThreadWatcherState<'_>) -> Result<bool, ()> {
     trace!("cmd_stop: stopping CPU thread...");
-    
+
     trace!("cmd_stop: attempting to lock state...");
     (&mut cpu_thread_watcher_state.lock().await).set_running(false);
     trace!("cmd_stop: stopped CPU thread");
-    
+
     Ok(true)
 }
 

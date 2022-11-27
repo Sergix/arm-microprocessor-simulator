@@ -1,16 +1,31 @@
-# README
+# Report
 
 **Name:** Peyton McGinnis  
 **Course:** CpS 310  
 **Submission date:** 28 November 2022  
 **Hours spent this phase:** 35
 
-## Overview
+## Table of Contents
+
+1. Introduction
+2. Features
+3. Software Prerequisites
+4. Build and Tests
+5. Configuration
+6. User Guide
+7. Software Architecture
+8. Bug Report
+9. Appendices
+
+## Introduction
 
 ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This application can load an ELF binary, disassemble the binary, and show the flags, memory, and stack as the application runs with inline run/step debugging.
 
+This report details all information pertaining the project's features, how to use the program, and how to compile and configure the program. This report also includes instructions for compiling your own program to run on the simulator.
+
 ## Features
 
+#### C-Level
 - ELF loader displays correct checksums for valid ELF files
 - Simulated RAM with checksums
 - `--mem`, `--exec`, and `<elf-file>` command line options are supported and validated
@@ -19,6 +34,8 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Stacks panel
 - Internal CPU simulator
 - Automatic execution through `--exec` option
+
+#### B-Level
 - Scrollable memory grid
   - Navigates to any given address and properly formats the table
 - Comprehensive unit tests
@@ -27,6 +44,8 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Multithreaded debugger controls -- Run, Step, Stop, Reset
 - All hotkeys implemented
 - Optional trace logs output to `trace.log` in local directory
+
+#### A-Level
 - Logging framework implemented using `tauri-plugin-log`, however enabling/disabling logging to shell in Debug mode or changing the default logfile destination are currently not supported. (More information in the Configuration section)
 - Polished GUI
 - Resizable window
@@ -46,7 +65,28 @@ ARMSim is a GUI debugger for ELF-binary applications compiled for ARM32. This ap
 - Processor mode notes in toolbar
 - SWI I/O handlers (putchar, halt, readline) with processor mode switching
 
-## Prerequisites
+#### Extra Credit
+
+**LDRH/STRH**  
+*Tests: `\tests\pmcgi795_halfword_no_io.c`, `\tests\pmcgi795_halfword_no_io.lst`*  
+*Trace log: `\tests\logs\pmcgi795_halfword_no_io_trace.log`*
+
+LDRH and STRH modes are implemented in the program. The trace log shows the following line and its translated assembly to show that it properly functions as the instruction correctly loads the value `1` into the register `r2`:
+
+`1048:	e1d220b2 	ldrh	r2, [r2, #2]`  
+`000019 00001048 1FFFDB3B 0000 SYS 0=00000000 1=00000000 2=00000001 3=00000006 4=00000000 5=00000000 6=00000000 7=00000000 8=00000000 9=00000000 10=00000000 11=00006FFC 12=00000000 13=00006FF0 14=00000000`
+
+**Data Move S-versions**  
+*No details or tests given*  
+
+#### Not implemented features
+
+- LDRH/STRH doublewords
+- LDRH/STRH LSH code disassembly
+- Log suppression for reset handler
+- Logging configuration
+
+## Software Prerequisites
 
 #### OS Platforms
 
@@ -104,7 +144,7 @@ The Debug target binary (`--debug` mode) logs output to the shell, the WebView d
 
 ## User Guide
 
-![ARMsim](./img/armsim-running.png)
+![ARMsim](/img/armsim-running.png)
 
 `armsim.exe [--mem <memory-size>] [--traceall] [--exec] <elf-file>`
 
@@ -136,7 +176,7 @@ The **Trace** function is used to output a log of all CPU steps to `./trace.log`
 
 The **Trace** button in the UI will be *green* when trace logging is active for the currently loaded executable. The trace log will appear in the directory from which the application was executed.
 
-![ARMsim](./img/trace-button.png)
+![ARMsim](/img/trace-button.png)
 
 #### Hotkeys
 
@@ -152,25 +192,25 @@ The **Trace** button in the UI will be *green* when trace logging is active for 
 
 In the memory panel, you can enter a hex address in the *Address* input and press **GO** to navigate to that address in the table.
 
-![Memory Panel](./img/memory-panel.png)
+![Memory Panel](/img/memory-panel.png)
 
 #### Flags Panel
 
 When one of the NZCV flags is active, the flag's icon will be green.
 
-![Flags Panel](./img/flags-panel.png)
+![Flags Panel](/img/flags-panel.png)
 
 #### Registers Panel
 
 This panel displays all the registers from r0...r15 for the currently loaded register bank.
 
-![Registers Panel](./img/registers-panel.png)
+![Registers Panel](/img/registers-panel.png)
 
 #### Stack Panel
 
 This panel displays memory locations close to the stack pointer: 3 above and 3 below. The stack pointer address is highlighted in the table.
 
-![Stack Panel](./img/stack-panel.png)
+![Stack Panel](/img/stack-panel.png)
 
 #### Terminal Panel
 
@@ -180,7 +220,7 @@ The terminal panel can be used by programs that execute interrupt instructions t
 3. `0x100000`: write calls to this address result in writing the character to the terminal
 4. `0x100001`: read calls to this address result in reading the last-pressed character from the terminal
 
-![Terminal Panel](./img/terminal-panel.png)
+![Terminal Panel](/img/terminal-panel.png)
 
 #### Disassembly Panel
 
@@ -188,7 +228,7 @@ This panel displays a table with instructions surrounding the currently executin
 
 By clicking the icon in the *BP* (BreakPoint) column, you can also toggle a breakpoint for that specific address.
 
-![Disassembly  Panel](./img/disassembly-panel.png)
+![Disassembly  Panel](/img/disassembly-panel.png)
 
 #### Writing Programs
 
@@ -214,34 +254,106 @@ arm-none-eabi-ld -T linker.ld -n -e main -o program.exe program.o
 
 Then, you can load `program.exe` into the simulator.
 
-## Instruction Implementation
+## Software Architecture
 
-- `AND`, `EOR`, `SUB`, `RSB`, `ADD`, `SBC`, `RSC`, `ORR`, `MOV`, `BIC`, `MVN`, `TEQ`, `TST`, `CMP`, `CMN`
-  - register with immediate shift, register with register shift, immediate
-  - all shift types (except RXX)
-  - all S variants
-- `LDR`, `STR`
-  - pre-index, pre-index writeback, post-index
-  - unsigned byte, word
-  - shifted register offset, register offset, immediate offset
-- `LDRH`, `STRH`: 
-  - LSH shifts implemented (except doubleword)
-  - pre-index, pre-index writeback, post-index
-  - register offset, immediate offset 
-- `B`, `BL`, `BX`
-- `LDM`, `STM`
-  - with and without writeback
-  - All LSM codes (increment after, decrement before, ...)
-- `MUL`
-- `SWI` (all interrupt codes)
-- `MSR`
-  - register offset, immediate offset
-  - assumes privilaged mode in calculating bit masks
-- `MRS`
-- `NOP`
+This application uses a combination of Rust with Tauri for the backend and the Tauri interface with SolidJS for the frontend.
+
+#### UML Diagram
+
+<embed src="/docs/DRAFT-diagram.drawio.pdf" width="500" height="375"></embed>
+
+#### Class Relationships
+
+The codebase is split into three main packages, `/lib`, `/src-tauri`, and `/src`:
+- `/lib` (cargo crate): logic that doesn't interact with the interface
+    This logic may interact with Tauri's application state, but does not interact with any UI logic
+- `/src-tauri` (npm package): Tauri commands, state, events, and other interface logic that sets up the frontend and responds to UI events
+- `/src` (cargo crate): frontend and UI, SolidJS, driven by Tauri server
+
+Execution begins in `/src-tauri/src/main.rs`, where Tauri sets up the web view backend. The frontend interacts with the backend by invoking events.
+
+The primary backend classes are the following:
+- `Memory`: all abstract methods and implementations for reading and writing data
+  - `RAM`: primary singleton for memory
+  - `Registers`: singleton for all program registers
+- `CPU`: all fetch, decode, execute steps that uses `Instruction` classes for processing
+- `CPUThreadWatcher`: watches the CPU thread state to manage events (IRQ interrupts, start/stop, etc.) from the frontend as the CPU is running
+- `Instruction`: CPU stores each decoded Word from the program as an `Instruction` class that also contains a reference to its appropriate execute method
+- `Options`: program command-line option parsing and storage
+- `Trace`: singleton tracefile instance called by CPU for saving trace logs
+
+#### Threading
+
+The application uses a somewhat-complex threading model because of Rust's strict enforcement of variable lifetimes. Global state singletons (`/lib/src/state.rs`) are managed by Tauri and can be accessed by any function in the application with access to the global `app_handle` object. This `app_handle` is passed around to functions and functions can access the state mutexes through this instance, but each function has to ensure that its locks are freed as soon as possible.
+
+Because the `CPU` class will likely be continuously running as the program executes, the `CPUThreadWatcher` class (as mentioned before) maintains the CPU's thread state while the CPU runs and intercepts events from the frontend.
+
+#### Model-View Separation
+
+*[Tauri Event Documentation](https://tauri.app/v1/guides/features/events/)*  
+
+Both the Rust Tauri backend and the frontend run on separate threads by nature. Events are sent to the frontend via `emit` calls on the "app handler", and events are sent to the backend via `invoke` calls. The backend listens to events via commands, and the frontend listens to events via `listen`ers.
+
+#### Third-Party Libraries
+
+- [Tauri](https://tauri.app/): primary application and webview driver
+- [normpath](https://crates.io/crates/normpath): normalize user-specified executable paths
+- [object](https://crates.io/crates/object): efficiently read ELF binaries
+- [bitmatch](https://crates.io/crates/bitmatch): pattern matching for bit sequences used in decoding instructions
+- [num](https://crates.io/crates/num): map enums to values
+
+#### Design Patterns
+
+Most of the signals sent throughout the program use some form of flagging technique. No special observer or event patterns are defined since Tauri intrinsically provides a complete event-based interface.
+
+#### Terminal I/O
+
+Terminal I/O is accomplished differently for how the data is either read or written:
+1. SWI `putchar` (`0x0`)
+   - set all the conditions defined by the ARM Manual (A2.6.4)
+   - read `r0`
+   - emit update event to frontend, frontend captures and adds character to terminal
+2. SWI `readline` (`0x6a`)
+   - set all the conditions defined by the ARM Manual (A2.6.4)
+   - get arguments from `r1` and `r2`
+   - emit a prompt event to frontend, frontend opens prompt input
+   - loop
+   - once user enters prompt, send a signal to the backend `CPUThreadWatcher`
+   - exit loop
+   - store input in memory
+3. Memory-mapped display device (`0x100000`)
+   - after decode and before execute, check if the instruction intends to write to the address
+   - if so, emit update event to frontend, frontend captures and adds character to terminal
+   - continue executing instruction as normal
+   - instruction execute method ignores write address
+4. Memory-mapped keyboard device (`0x100001`)
+   - after decode and before execute, inject the user's last-pressed key into the instruction class
+   - execute the instruction
+   - if the instruction intends to read from the address, the instruction replaces the value with the last-pressed key value
+
 ## Bug Report
 
 #### Sim1 Tracefile Comparisons
+
+- `btest.exe`: trace logs are identical
+- `ctest.exe`: trace logs are identical
+- `ldmstm.exe`: works as expected
+
+#### Sim2 Tracefile Comparisons
+
+- `branch.exe`: trace logs are identical
+- `cmp.exe`: trace logs are identical
+- `locals_no_io.exe`: trace logs are identical
+- `mersenne_no_io.exe`: trace logs are identical
+- `quicksort_no_io.exe`: trace logs are identical
+- `countdown.exe`: works as expected
+- `iodemo.exe`: works as expected
+- `mersenne.exe`: works as expected
+- `quicksort.exe`: works as expected
+- `simpleiodemo.exe`: works as expected
+- `syscalldemo.exe`: works as expected
+
+#### General
 
 - Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
 - Although rarely, the program may hang when running a program using the `--traceall` and `--exec` options.
@@ -274,7 +386,7 @@ By affixing my signature below, I certify that the accompanying work represents 
 |------|------|----------------|------------|
 
 
-## Code Listings
+## Appendices
 
 #### Code Listing 1
 
