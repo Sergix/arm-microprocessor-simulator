@@ -380,8 +380,15 @@ No progress.
 
 ### 11-26-22
 
-**Checkpoint Reached: Checkpoint 4: Execution II**
-
 #### Progress [4.75hrs]
 
 - Update all documentation and README
+
+### 11-27-22
+
+**Checkpoint Reached: Checkpoint 4: Execution II**
+
+#### Progress [1hrs]
+
+- Fix reset toolbar bug with button state not correctly resetting
+- Publish report
