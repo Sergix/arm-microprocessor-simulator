@@ -2,8 +2,8 @@
 
 **Name:** Peyton McGinnis  
 **Course:** CpS 310  
-**Submission date:** 28 November 2022  
-**Hours spent this phase:** 35
+**Submission date:** 27 November 2022  
+**Hours spent this phase:** 37
 
 ## Overview
 
@@ -150,29 +150,33 @@ The **Trace** button in the UI will be *green* when trace logging is active for 
 
 #### Memory Panel
 
+![Memory Panel](/img/memory-panel.png)
+
 In the memory panel, you can enter a hex address in the *Address* input and press **GO** to navigate to that address in the table.
 
-![Memory Panel](./img/memory-panel.png)
+*Note: When navigating to a specific memory location, the memory panel's table will need to "rechunk" the table to display correct formatting which causes a short delay in loading the program's information.*
 
 #### Flags Panel
 
-When one of the NZCV flags is active, the flag's icon will be green.
+![Flags Panel](/img/flags-panel.png)
 
-![Flags Panel](./img/flags-panel.png)
+When one of the NZCV flags is active, the flag's icon will be green.
 
 #### Registers Panel
 
-This panel displays all the registers from r0...r15 for the currently loaded register bank.
+![Registers Panel](/img/registers-panel.png)
 
-![Registers Panel](./img/registers-panel.png)
+This panel displays all the registers from r0...r15 for the currently loaded register bank.
 
 #### Stack Panel
 
-This panel displays memory locations close to the stack pointer: 3 above and 3 below. The stack pointer address is highlighted in the table.
+![Stack Panel](/img/stack-panel.png)
 
-![Stack Panel](./img/stack-panel.png)
+This panel displays memory locations close to the stack pointer: (up to) 3 addresses above the stack pointer, and (up to) 3 addresses below the stack pointer. The stack pointer address is the highlighted row in the table.
 
 #### Terminal Panel
+
+![Terminal Panel](/img/terminal-panel.png)
 
 The terminal panel can be used by programs that execute interrupt instructions to read and write to an output device. The following functionality is enabled for programs:
 1. SWI `0x0`: output the character to the terminal
@@ -180,15 +184,15 @@ The terminal panel can be used by programs that execute interrupt instructions t
 3. `0x100000`: write calls to this address result in writing the character to the terminal
 4. `0x100001`: read calls to this address result in reading the last-pressed character from the terminal
 
-![Terminal Panel](./img/terminal-panel.png)
-
 #### Disassembly Panel
+
+![Disassembly Panel](/img/disassembly-panel.png)
 
 This panel displays a table with instructions surrounding the currently executing instruction and each instruction's ARM assembly representation.
 
-By clicking the icon in the *BP* (BreakPoint) column, you can also toggle a breakpoint for that specific address.
+By hovering over and clicking the circle icon in the **BP** (*<u>B</u>reak<u>P</u>oint*) column, you can also toggle a breakpoint for that specific address.
 
-![Disassembly  Panel](./img/disassembly-panel.png)
+![Disassembly Panel Breakpoint](/img/disassembly-panel-bp.png)
 
 #### Writing Programs
 
@@ -251,17 +255,6 @@ Then, you can load `program.exe` into the simulator.
 #### [Project Journal](CHANGELOG.md)
 
 #### [Git log](https://github.com/bjucps310/cps310-simulator-Sergix/commits/master)
-
-#### Project Hours
-
-**Subtotal hours for each phase**
-
-1. Phase 1: 31.25h
-2. Phase 2: 22.15h
-3. Phase 3: 33.25h
-4. Phase 4: 35h
-
-**Total number of hours for the entire project**: 120.9h
 
 ## Academic Integrity Statement
 

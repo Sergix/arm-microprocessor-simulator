@@ -388,7 +388,7 @@ No progress.
 
 **Checkpoint Reached: Checkpoint 4: Execution II**
 
-#### Progress [1hrs]
+#### Progress [2hrs]
 
 - Fix reset toolbar bug with button state not correctly resetting
 - Publish report
