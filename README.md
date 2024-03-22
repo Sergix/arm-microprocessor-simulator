@@ -1,4 +1,4 @@
-# README
+# ARMSim Microprocessor Simulator
 
 *Originally written for BJU CpS 310: Microprocessor Architecture*
 
