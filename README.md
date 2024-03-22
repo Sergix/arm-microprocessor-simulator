@@ -1,9 +1,6 @@
 # README
 
-**Name:** Peyton McGinnis  
-**Course:** CpS 310  
-**Submission date:** 27 November 2022  
-**Hours spent this phase:** 37
+*Originally written for BJU CpS 310: Microprocessor Architecture*
 
 ## Overview
 
@@ -243,52 +240,6 @@ Then, you can load `program.exe` into the simulator.
   - assumes privilaged mode in calculating bit masks
 - `MRS`
 - `NOP`
-## Bug Report
 
-#### Sim1 Tracefile Comparisons
+## [Project Journal](CHANGELOG.md)
 
-- Most ELF headers are currently not validated in the program except for the magic number, so they will cause errors in the console but the exceptions are caught.
-- Although rarely, the program may hang when running a program using the `--traceall` and `--exec` options.
-
-## Appendices
-
-#### [Project Journal](CHANGELOG.md)
-
-#### [Git log](https://github.com/bjucps310/cps310-simulator-Sergix/commits/master)
-
-## Academic Integrity Statement
-
-By affixing my signature below, I certify that the accompanying work represents my own intellectual effort. Furthermore, I have received no outside help other than what is documented below.
-
-*Peyton McGinnis*
-
-| Date | Name | Nature of Help | Time Spent | 
-|------|------|----------------|------------|
-|------|------|----------------|------------|
-
-
-## Code Listings
-
-#### Code Listing 1
-
-```
-SECTIONS
-{
-    . = 0x001000;
-
-    .text ALIGN (0x04) :
-    {
-        *(.text)
-        *(.rodata)
-        *(.data)
-    } 
-
-    .bss :
-    {
-        sbss = .;
-        *(COMMON)
-        *(.bss)
-        ebss = .;
-    }
-}
-```
